@@ -5,6 +5,9 @@ MAGeCK2 is a new computational tool, built upon MAGeCK, for CRISPR screening ana
 
 ## Getting MAGeCK2 
 
+## Demo
+
+You can run the demo datasets of MAGeCK2 from GitHub [mageck2-demo](https://github.com/davidliwei/mageck2-demo) repository.
 
 ## MAGeCK
 
