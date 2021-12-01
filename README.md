@@ -3,6 +3,12 @@
 
 MAGeCK2 is a new computational tool, built upon MAGeCK, for CRISPR screening analysis.
 
+Compared with MAGeCK, MAGeCK2 highlights the following functionalities:
+
+* Paired sample analysis
+
+More functions to be added.
+
 ## Getting MAGeCK2 
 
 ## Demo
