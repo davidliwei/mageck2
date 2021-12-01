@@ -1,0 +1,455 @@
+---
+title: "MAGeCK Comparison Report"
+output: html_notebook
+---
+
+<!-- 
+
+This is a template file for R markdown used in MAGeCK 
+ 
+-->
+
+Author: Wei Li, weililab.org
+
+*Note* This R markdown file provides a simple and convenient web report for the MAGeCK results. For experienced users, [MAGeCKFlute R package](https://bioconductor.org/packages/release/bioc/html/MAGeCKFlute.html) is recommended as it provides additional visualization functionalities.
+
+## Parameters
+
+comparison_name is the prefix of your output file, defined by the "-n" parameter in your "mageck test" command. The system will look for the following files to generate this report:
+
+* comparison_name.sgrna_summary.txt
+* comparison_name.gene_summary.txt
+* comparison_name.log
+
+
+```{r}
+# define the comparison_name here; for example,
+# comparison_name='demo'
+#__COMPARISON_NAME__
+```
+
+FDR cutoff is used to draw a boundary line in RRA or p value plots. Set it to -1 to disable the boundary line.
+```{r}
+fdrcutoff=0.05
+# fdrcutoff=-1 # disable FDR cutoff line
+```
+
+
+## Preprocessing
+
+
+```{r echo=FALSE}
+
+
+####  function definition #
+
+library(knitr)
+library(stringr)
+library(ggplot2)
+library(reshape2)
+library(fgsea)
+
+genreporttable<-function(cpname,genetb){
+  comparisons=rep(cpname,2)
+  #genetb=read.table(genesummaryfile,header = T,as.is = T)
+  ngenes=rep(nrow(genetb),2)
+  direction=c('neg','pos')
+  fdr1=c(sum(genetb[,5]<0.01),sum(genetb[,11]<0.01))
+  fdr5=c(sum(genetb[,5]<0.05),sum(genetb[,11]<0.05))
+  fdr25=c(sum(genetb[,5]<0.05),sum(genetb[,11]<0.05))
+  xtb=data.frame(Comparison=comparisons,Genes=ngenes,Selection=direction,FDR1=fdr1,FDR5=fdr5,FDR25=fdr25);
+  colnames(xtb)=c("Comparison","Genes","Selection","FDR1%","FDR5%","FDR25%");
+  return (xtb);
+}
+
+
+colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
+          "#999999", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3", 
+          "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5",
+          "#D9D9D9", "#BC80BD", "#CCEBC5", "#FFED6F")
+
+
+plotrankedvalues<-function(val, tglist, cutoffline=-1, ...){
+  
+  plot(val,log='y',ylim=c(max(val),min(val)),type='l',lwd=2, ...)
+  if(length(tglist)>0){
+    for(i in 1:length(tglist)){
+      targetgene=tglist[i];
+      tx=which(names(val)==targetgene);ty=val[targetgene];
+      points(tx,ty,col=colors[(i %% length(colors)) ],cex=2,pch=20)
+      # text(tx+50,ty,targetgene,col=colors[i])
+    }
+    legend('topright',tglist,pch=20,pt.cex = 2,cex=1,col=colors)
+  }
+  if(cutoffline>0){
+    lines(c(cutoffline,cutoffline),c(min(val)*1e-5,max(val)*10000),lty=2)
+  }
+}
+
+
+
+plotrandvalues<-function(val,targetgenelist,cutoffline=-1, ...){
+  # choose the one with the best distance distribution
+  
+  mindiffvalue=0;
+  randval=val;
+  for(i in 1:20){
+    randval0=sample(val)
+    vindex=sort(which(names(randval0) %in% targetgenelist))
+    if(max(vindex)>0.9*length(val)){
+      # print('pass...')
+      next;
+    }
+    mindiffind=min(diff(vindex));
+    if (mindiffind > mindiffvalue){
+      mindiffvalue=mindiffind;
+      randval=randval0;
+      # print(paste('Diff: ',mindiffvalue))
+    }
+  }
+  plot(randval,log='y',ylim=c(max(randval),min(randval)),pch=20,col='grey', ...)
+  
+  if(length(targetgenelist)>0){
+    for(i in 1:length(targetgenelist)){
+      targetgene=targetgenelist[i];
+      tx=which(names(randval)==targetgene);ty=randval[targetgene];
+      points(tx,ty,col=colors[(i %% length(colors)) ],cex=2,pch=20)
+      text(tx+length(randval)/100,ty,targetgene,col=colors[i],adj=1,pos=4)
+    }
+  }
+  if(cutoffline>0){
+    lines(c(-100,length(randval)*2),c(cutoffline,cutoffline),lty=2)
+  }
+  
+}
+
+getcomparisonsfromlogfile<-function(logfile){
+  
+  logline=readLines(file(logfile,"r"),n = 1)
+  #print(logline)
+  logbk=strsplit(logline,' ')[[1]]
+  ctrl_sample=c()
+  treat_sample=c()
+  for(i_x in 1:length(logbk)){
+    if(logbk[i_x]=='-c' | logbk[i_x]=='--control'){
+      ctrl_sample=strsplit(logbk[i_x+1],',')[[1]]
+    }
+     if(logbk[i_x]=='-t' | logbk[i_x]=='--treatment'){
+      treat_sample=strsplit(logbk[i_x+1],',')[[1]]
+    }
+  }
+  #close(logff)
+  return (list(ctrl_sample,treat_sample))
+}
+
+plotindvidualsgrnas<-function(sg_table,targetgene,collabel){
+  
+  xsg_c=sg_table[which(sg_table[,'Gene']==targetgene),c('control_count','treatment_count')]
+  rownames(xsg_c)=sg_table[which(sg_table[,'Gene']==targetgene),'sgrna']
+  
+  xsg_c2=paste(xsg_c[,1],xsg_c[,2],sep='/')
+  
+  xsg_c3=t(data.frame(lapply(strsplit(xsg_c2,'/'),as.numeric)))
+  rownames(xsg_c3)=rownames(xsg_c)
+  
+  targetmat=xsg_c3
+  
+  targetmatvec=unlist(targetmat)+1
+  yrange=range(targetmatvec[targetmatvec>0]);
+  # yrange[1]=1; # set the minimum value to 1
+  for(i in 1:nrow(targetmat)){
+    vali=targetmat[i,]+1;
+    if(i==1){
+      plot(1:length(vali),vali,type='b',las=1,pch=20,main=paste('sgRNAs in',targetgene),ylab='Read counts',xlab='Samples',xlim=c(0.7,length(vali)+0.3),ylim = yrange,col=colors[(i %% length(colors))],xaxt='n',log='y')
+      if(length(collabel)==length(vali)){
+         axis(1,at=1:length(vali),labels=(collabel),las=2)
+      }else{
+        warning('Cannot extract sample labels.')
+      }
+
+      # lines(0:100,rep(1,101),col='black');
+    }else{
+      lines(1:length(vali),vali,type='b',pch=20,col=colors[(i %% length(colors))])
+    } 
+  }
+  
+
+}
+
+plotindvidualsgrnas_lfc<-function(sg_table,targetgene,collabel){
+
+  xsg_c=sg_table[which(sg_table[,'Gene']==targetgene),c('control_count','treatment_count')]
+  rownames(xsg_c)=sg_table[which(sg_table[,'Gene']==targetgene),'sgrna']
+
+  xsg_c2=paste(xsg_c[,1],xsg_c[,2],sep='/')
+
+  xsg_c3=t(data.frame(lapply(strsplit(xsg_c2,'/'),as.numeric)))
+  rownames(xsg_c3)=rownames(xsg_c)
+
+  targetmat=xsg_c3
+
+  targetmatvec=unlist(targetmat)+1
+  yrange=range(targetmatvec[targetmatvec>0])
+  ncontrol=str_count(xsg_c[1,1],"/")+1
+
+  targetmatvec_log=log2(targetmatvec)
+  if(ncontrol>1 & nrow(targetmatvec_log)>1){
+    ctrlmean=rowMeans(targetmatvec_log[,1:ncontrol])
+  }else{
+    ctrlmean=targetmatvec_log[,1]
+  }
+  targetmatvec_log=targetmatvec_log-ctrlmean
+  colnames(targetmatvec_log)=collabel
+  p<-ggplot(melt(targetmatvec_log),aes(x=Var2,y=Var1,fill=value))+
+    geom_tile()+
+    scale_fill_gradient2(low = "blue", high = "red", mid = "white",
+   midpoint = 0,  space = "Lab", #limit = c(-1,1),
+   name="Log2 FC")+
+    theme_minimal()+
+    xlab('Samples')+
+    ylab('Guides')+
+    ggtitle(targetgene)+
+    theme(axis.text.x = element_text(angle = 45, vjust = 1,
+    size = 12, hjust = 1))
+  print(p)
+  #return(targetmatvec_log)
+}
+
+
+plot_rra_or_p_scores<-function(gstable,startindex,fdrcolumn,target_list,...){
+  pvec=gstable[,startindex]
+  names(pvec)=gstable[,'id']
+  pvec=sort(pvec);
+  
+  ncutoff=ifelse(fdrcutoff>0,sum(gstable[,fdrcolumn]<fdrcutoff),-1)
+  
+  vcutoff=ifelse(fdrcutoff>0 & ncutoff>0,max(pvec[1:ncutoff]),-1)
+  
+  plotrankedvalues(pvec,target_list,cutoffline = ncutoff,...)
+  
+  plotrandvalues(pvec,target_list,cutoffline = vcutoff,...)
+
+}
+```
+
+
+```{r echo=FALSE}
+
+gene_summary_file=paste(comparison_name,'.gene_summary.txt',sep='')
+sgrna_summary_file=paste(comparison_name,'.sgrna_summary.txt',sep='')
+log_file=paste(comparison_name,'.log',sep='')
+
+```
+
+
+Reading input files. If any of these files are problematic, an error message will be shown below.
+
+```{r}
+gstable=read.table(gene_summary_file,header = T,as.is = T,na.strings='')
+sg_table=read.table(sgrna_summary_file,header = T,as.is = T,na.strings='')
+comp_samples=getcomparisonsfromlogfile(log_file)
+collabel=c(comp_samples[[1]],comp_samples[[2]])
+```
+
+## Summary
+
+
+
+
+The samples used in the comparison is indicated as follows.
+
+
+```{r echo=FALSE,results='asis'}
+sampletable=data.frame(Sample=c(comp_samples[[1]],comp_samples[[2]]),Type=c(rep('control',length(comp_samples[[1]])),rep('treatment',length(comp_samples[[2]]))))
+kable(sampletable,caption='Sample summary')
+```
+
+The statistics of comparisons is as indicated in the following table. 
+
+```{r echo=FALSE,results='asis'}
+
+cptable=genreporttable(comparison_name,gstable)
+
+kable(cptable,caption='Comparion summary')
+```
+
+
+The meanings of the columns are as follows.
+
+* Comparison: The label for comparisons;
+* Genes: The number of genes in the library;
+* Selection: The direction of selection, either positive selection or negative selection;
+* FDR1%: The number of genes with FDR < 1%;
+* FDR5%: The number of genes with FDR < 5%;
+* FDR25%: The number of genes with FDR < 25%;
+
+## Plotting invidivual genes in negative selection
+
+The following figures show:
+
+* Individual sgRNA read counts of selected genes in selected samples; 
+* The distribution of RRA scores and p values of all genes; and
+* The RRA scores and p values of selected genes.
+
+The following genes are used in the plot (change it as you like). By default, it is the top 5 genes in negatively selected genes.
+
+```{r}
+targetgenelist_neg=gstable[gstable[,6]<=5,1]
+
+# or, directly specify the genes to be plotted
+#targetgenelist_neg=c("ACTR8","ACIN1")
+
+# display genes used in the plot
+print(targetgenelist_neg)
+
+```
+
+The following figure plots the distribution of RRA scores across these genes. Dotted lines represent the FDR cutoff line defined by the "fdrcutoff" value in the "Paramters" section.
+
+```{r echo=FALSE}
+
+startindex=3
+fdrcolumn=5
+
+plot_rra_or_p_scores(gstable,startindex,fdrcolumn,target_list = targetgenelist_neg, xlab='Genes',ylab='RRAscore',main=paste('Distribution of RRA scores in',comparison_name))
+
+
+```
+
+
+The following figure plots the distribution of p values in these genes. Dotted lines represent the FDR cutoff line defined by the "fdrcutoff" value in the "Paramters" section.
+
+```{r echo=FALSE}
+
+
+startindex=4
+fdrcolumn=5
+
+plot_rra_or_p_scores(gstable,startindex,fdrcolumn,target_list = targetgenelist_neg, xlab='Genes',ylab='p value',main=paste('Distribution of p values in',comparison_name))
+
+
+```
+
+
+
+## Plotting invidivual genes in positive selection
+
+
+
+The following genes are used in the plot (change it as you like). By default, it is the top 5 genes in negatively selected genes.
+
+```{r}
+
+targetgenelist_pos=gstable[gstable[,12]<5,1]
+
+# or, directly specify the genes to be plotted
+#targetgenelist_pos=c("ACTR8","ACIN1")
+
+# display genes used in the plot
+print(targetgenelist_pos)
+
+```
+
+The following figure plots the distribution of RRA scores across these genes. Dotted lines represent the FDR cutoff line defined by the "fdrcutoff" value in the "Paramters" section.
+
+```{r echo=FALSE}
+
+startindex=9
+
+fdrcolumn=11
+
+plot_rra_or_p_scores(gstable,startindex,fdrcolumn,target_list = targetgenelist_pos, xlab='Genes',ylab='RRAscore',main=paste('Distribution of RRA scores in',comparison_name))
+
+
+```
+
+
+
+The following figure plots the distribution of p values in these genes. Dotted lines represent the FDR cutoff line defined by the "fdrcutoff" value in the "Paramters" section.
+
+```{r echo=FALSE}
+startindex=10
+
+fdrcolumn=11
+
+plot_rra_or_p_scores(gstable,startindex,fdrcolumn,target_list = targetgenelist_pos, xlab='Genes',ylab='p value',main=paste('Distribution of p values in',comparison_name))
+
+```
+
+# sgRNA changes
+
+The following figures show the distribution of sgRNA read counts (normalized) of selected genes in selected samples.
+
+
+```{r}
+
+for(target_gene in c(targetgenelist_neg,targetgenelist_pos)){
+  plotindvidualsgrnas(sg_table,target_gene,collabel)
+}
+
+```
+
+
+The following figures show the distribution of sgRNA log2 fold changes of selected genes in selected samples.
+
+
+```{r}
+
+for(target_gene in c(targetgenelist_neg,targetgenelist_pos)){
+  plotindvidualsgrnas_lfc(sg_table,target_gene,collabel)
+}
+
+```
+
+# Enrichment analysis
+
+The following table and figure uses Gene Set Enrichment Analysis (GSEA) to estimate the dropout of core essential genes (defined by the Johannes Zuber lab and also used in our MAGeCKFlute R package).
+
+Note: fgsea R package is required.
+
+```{r echo=FALSE}
+core_ess_gene_symbol=c('AAMP','AARS','AASDHPPT','ABCB7','ABCF1','ABT1','ACO2','ACTL6A','ACTR10','ACTR2','AHCY','ALDOA','ALG1','ALG11','ALG2','ANAPC10','ANAPC11','ANAPC4','ANAPC5','AP2S1','ARCN1','ARL2','ARMC7','ARPC4','ATP2A2','ATP5A1','ATP5B','ATP5F1','ATP5J2','ATP6AP1','ATP6V0B','ATP6V0C','ATP6V0D1','ATP6V1A','AURKA','BANF1','BCAS2','BIRC5','BMS1','BRD4','BRF1','BUB3','BUD31','BYSL','C21orf59','C3orf17','C9orf114','CAPZB','CARS','CASC5','CCDC115','CCDC84','CCNA2','CCT2','CCT3','CCT4','CCT5','CCT6A','CCT8','CDC123','CDC16','CDC20','CDC23','CDC27','CDC37','CDC45','CDC5L','CDC7','CDC73','CDIPT','CDK1','CDK9','CDT1','CEBPZ','CENPM','CENPN','CHAF1B','CHEK1','CHERP','CHMP2A','CHMP6','CIAO1','CINP','CIRH1A','CKAP5','CMPK1','CNOT3','COASY','COPA','COPB1','COPB2','COPE','COPS3','COPS6','CPSF2','CPSF3','CRCP','CRNKL1','CSE1L','CSNK1A1','CSNK2B','CSTF1','CSTF3','CTCF','CTDP1','CTU2',
+                       'DAD1','DAP3','DARS','DBR1','DCTN5','DDB1','DDOST','DDX10','DDX18','DDX24','DDX27','DDX46','DDX47','DDX49','DDX52','DDX55','DDX56','DDX59','DDX6','DHDDS','DHX15','DHX36','DHX8','DHX9','DIEXF','DIS3','DKC1','DMAP1','DNAJA3','DNM2','DONSON','DTL','DTYMK','DYNC1H1','DYNLRB1','EBNA1BP2','ECD','ECT2','EEF2','EIF1','EIF2B1','EIF2B2','EIF2B3','EIF2B4','EIF2B5','EIF2S1','EIF2S2','EIF2S3','EIF3A','EIF3D','EIF3I','EIF4A1','EIF4A3','EIF5','EIF5B','EIF6','ELL','ELP5','ELP6','EPRS','ERCC3','ERH','ETF1','EXOSC2','EXOSC3','EXOSC5','EXOSC8','EXOSC9','FAM96B','FARSA','FARSB','FBL','FDX1L','FEN1','FNTB','FTSJ3','GAPDH','GARS','GEMIN5','GFER','GFM1','GGPS1','GINS1','GINS2','GNB1L','GNB2L1','GNL2','GNL3','GPKOW','GPN2','GPN3','GRPEL1','GRWD1','GSPT1','GTF2A2','GTF2B','GTF2H3','GTF3C1','GTF3C3','GTF3C4','GTF3C5','GTPBP4','GUK1','HARS','HAUS1','HAUS3','HAUS4','HAUS5','HAUS7','HCFC1','HEATR1','HINFP','HJURP','HMGCS1','HNRNPC','HNRNPK','HNRNPL','HNRNPU','HSD17B10','HSPA5','HSPA8','HSPA9','IARS','ICE1','IGBP1','IKBKAP','IMP4','INCENP','INTS2','INTS3','ISG20L2','KANSL3','KARS','KAT8','KIF11','KPNB1','KRR1','LARS','LAS1L','LRR1','LSM11','LSM2','LSM3','LSM4','LSM8','LTV1','MARS','MASTL','MAT2A','MAX','MCM2','MCM3','MCM5','MCM6','MCM7','MDN1','MED14','MED17','MED20','MED27','MED6','MED7','MED8','MED9','METTL14','METTL16','MFAP1','MIS12','MOB4','MRPL34','MRPL39','MRPL45','MRPS10','MRPS12','MRPS14','MRPS6','MTG2','MTOR','MYBBP1A','MZT1','NAA10','NAA15','NAA20','NAA25','NAA50','NAPA','NARFL','NARS','NCAPG','NCAPH','NCBP1','NCBP2','NCL','NDC80','NDUFAB1','NEDD1','NEDD8','NFS1','NGDN','NHP2L1','NIFK','NIP7','NKAP','NLE1','NMD3','NOC4L','NOL10','NOL12','NOL6','NOL8','NOL9','NOM1','NOP10','NOP14','NOP16','NOP2','NOP56','NOP58','NPAT','NPLOC4','NRF1','NSA2','NSMCE1','NUDT21','NUF2','NUP133','NUP155','NUP160','NUP85','NUP93','NUTF2',
+                       'ORAOV1','ORC1','ORC6','OSGEP','PABPC1','PAK1IP1','PCF11','PCID2','PCNA','PDCD11','PDRG1','PES1','PFDN2','PFDN6','PHB','PLK1','PMPCA','PMPCB','PNO1','POLD1','POLD2','POLD3','POLE','POLE2','POLR1B','POLR1C','POLR2A','POLR2B','POLR2C','POLR2D','POLR2E','POLR2F','POLR2I','POLR2L','POLR3A','POLR3B','POLR3C','POLR3E','POLR3H','POLR3K','POP7','PPIL2','PPIL4','PPP1CB','PPP1R10','PPP4C','PPWD1','PRC1','PRIM1','PRMT1','PRPF19','PRPF3','PRPF31','PRPF38A','PRPF38B','PRPF4','PRPF6','PRPF8','PSMA1','PSMA2','PSMA3','PSMA5','PSMA7','PSMB1','PSMB2','PSMB3','PSMB4','PSMB7','PSMC1','PSMC3','PSMC4','PSMC5','PSMC6','PSMD1','PSMD12','PSMD14','PSMD2','PSMD3','PSMD4','PSMD6','PSMD7','PSMD8','PSMG4','PTPMT1','PWP2','QARS','RABGGTB','RAD51','RAE1','RAN','RANGAP1','RARS2','RBBP4','RBBP5','RBBP6','RBM14','RBM25','RBM8A','RBMX','RBX1','RCC1','RFC2','RFC3','RFC4','RFC5','RIOK1','RNGTT','RNPS1','RPA1','RPA2','RPF1','RPF2','RPL11','RPL12','RPL13','RPL13A','RPL14','RPL15','RPL17','RPL18','RPL18A','RPL19','RPL23','RPL26','RPL27','RPL27A','RPL29','RPL3','RPL31','RPL32','RPL34','RPL35','RPL37','RPL37A','RPL38','RPL4','RPL5','RPL6','RPL7A','RPL7L1','RPL9','RPLP0','RPLP2','RPN1','RPP14','RPP38','RPS10','RPS11','RPS12','RPS13','RPS14','RPS15','RPS15A','RPS16','RPS18','RPS19','RPS21','RPS23','RPS26','RPS27A','RPS29','RPS3','RPS4X','RPS8','RPS9','RPTOR','RRM1','RRM2','RRP1','RRP9','RSL1D1','RSL24D1','RTCB','RTFDC1','RUVBL1','RUVBL2','SACM1L','SAP18','SARS','SARS2','SART3','SDAD1','SEC61A1','SEH1L','SF1','SF3A2','SF3B3','SF3B6','SFPQ','SHFM1','SHQ1','SKIV2L2','SKP1','SLC35B1','SLC7A6OS','SLMO2','SMC1A','SMC2','SMC3','SMC4','SMC5','SMC6','SMNDC1','SMU1','SNAPC3','SNRNP200','SNRNP35','SNRNP70','SNRPA1','SNRPB','SNRPC','SNRPD1','SNRPD2','SNRPD3','SNRPF','SNW1','SOD1','SON','SPATA5','SPATA5L1','SPC24','SPC25','SPRTN','SRP72','SRRT','SRSF1','SRSF2','SRSF3','SRSF7','SSRP1','SSU72','SUMO2','SUPT16H','SUPV3L1','SYMPK','SYS1',
+                       'TAF1B','TAF1C','TAMM41','TARDBP','TARS2','TBCD','TCP1','THOC5','TICRR','TIMM10','TIMM23','TINF2','TMEM199','TNPO3','TOMM20','TOMM22','TOMM40','TOP2A','TP53RK','TPI1','TPT1','TPX2','TRAPPC1','TRAPPC3','TRAPPC4','TRAPPC8','TRMT5','TSEN54','TSG101','TSR1','TSR2','TTC27','TTF1','TUBA1B','TUBB','TUBG1','TUBGCP3','TUBGCP4','TUT1','TWISTNB','TXNL4A','U2AF1','U2AF2','UBA1','UBA2','UBA3','UBA52','UBE2I','UBE2L3','UBL5','UFD1L','UPF1','UQCRC1','URB1','USP39','USP5','USPL1','UTP15','UTP20','UXT','VARS','VCP','VMP1','VPS13D','VPS25','WDHD1','WDR12','WDR18','WDR25','WDR3','WDR33','WDR43','WDR46','WDR55','WDR70','WDR74','WDR75','WDR77','WDR82','WDR92','WEE1','XAB2','XPO5','XRCC6','YARS','YARS2','YEATS4','YKT6','ZMAT5','ZNF131','ZPR1')
+
+```
+
+```{r}
+
+library(fgsea)
+
+
+#core_ess_gene=read.table('~/Dropbox/work/TengFei/design/mageck-flute/Core_Essentialome_Zuberlab_v2.txt',sep='\t',header = T,quote='',comment.char = '')
+
+gene_id=gstable$id
+if(sum(gene_id%in%core_ess_gene_symbol)<6){
+  print('Not enough gene symbols found in essential gene list. Skip the enrichment step.')
+}else{
+
+  ranks=log10(gstable$neg.score)
+
+  ranks=nrow(gstable):1/nrow(gstable)
+
+  ranks=ranks*2-1
+
+  names(ranks)=gstable$id
+
+
+  gset=gstable$id[gene_id%in%core_ess_gene_symbol]
+  gsetlist=list(zuber=gset)
+
+  #fgseaRes <- fgsea(gsetlist, ranks, minSize=15, maxSize = 500, nperm=1000)
+
+  fgseaRes <- fgseaMultilevel(gsetlist, ranks, minSize=15, maxSize = 500,scoreType = 'std',eps = 0)
+  fgseaRes=fgseaRes[order(fgseaRes$pval),]
+
+
+  #print(head(fgseaRes))
+  print(kable(fgseaRes,caption='Enrichment results'))
+
+  plotEnrichment(gsetlist$zuber, ranks)
+
+}
+```
+

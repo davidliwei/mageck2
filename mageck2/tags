@@ -1,0 +1,356 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+DesignMatCache	mledesignmat.py	/^class DesignMatCache:$/;"	c
+MeanVarModel	mlemageck.py	/^  from mageck.mlemeanvar import MeanVarModel$/;"	i
+MeanVarModel	mlemeanvar.py	/^class MeanVarModel:$/;"	c
+PdfPages	mleem.py	/^  from matplotlib.backends.backend_pdf import PdfPages$/;"	i
+SimCaseSimple	mleclassdef.py	/^class SimCaseSimple:$/;"	c
+Tracer	mleem.py	/^  from IPython.core.debugger import Tracer$/;"	i
+Tracer	mlegensimexamples.py	/^  from IPython.core.debugger import Tracer$/;"	i
+Tracer	mlemageck.py	/^  from IPython.core.debugger import Tracer$/;"	i
+Tracer	mlemeanvar.py	/^  from IPython.core.debugger import Tracer$/;"	i
+VisualRCount	testVisualCount.py	/^class VisualRCount:$/;"	c
+VisualRValue	testVisual.py	/^class VisualRValue:$/;"	c
+WriteRTemplate	testVisual.py	/^  def WriteRTemplate(self):$/;"	m	class:VisualRValue
+analyze_designmat	mledesignmat.py	/^def analyze_designmat(design_mat):$/;"	f
+argparse	argsParser.py	/^import argparse$/;"	i
+argparse	mageckCount.py	/^import argparse$/;"	i
+argparse	mleargparse.py	/^import argparse$/;"	i
+args	mageckCount.py	/^    args=mageckcount_parseargs()$/;"	v
+beta0	mleclassdef.py	/^  beta0=[]$/;"	v	class:SimCaseSimple
+beta1	mleclassdef.py	/^  beta1=[0]$/;"	v	class:SimCaseSimple
+beta_estimate	mleclassdef.py	/^  beta_estimate=[]$/;"	v	class:SimCaseSimple
+beta_permute_pval	mleclassdef.py	/^  beta_permute_pval=[]$/;"	v	class:SimCaseSimple
+beta_permute_pval_fdr	mleclassdef.py	/^  beta_permute_pval_fdr=[]$/;"	v	class:SimCaseSimple
+beta_permute_pval_neg	mleclassdef.py	/^  beta_permute_pval_neg=[]$/;"	v	class:SimCaseSimple
+beta_permute_pval_neg_fdr	mleclassdef.py	/^  beta_permute_pval_neg_fdr=[]$/;"	v	class:SimCaseSimple
+beta_permute_pval_pos	mleclassdef.py	/^  beta_permute_pval_pos=[]$/;"	v	class:SimCaseSimple
+beta_permute_pval_pos_fdr	mleclassdef.py	/^  beta_permute_pval_pos_fdr=[]$/;"	v	class:SimCaseSimple
+beta_pval	mleclassdef.py	/^  beta_pval=[]  # two-sided p values$/;"	v	class:SimCaseSimple
+beta_pval_fdr	mleclassdef.py	/^  beta_pval_fdr=[]  # two-sided p values$/;"	v	class:SimCaseSimple
+beta_pval_neg	mleclassdef.py	/^  beta_pval_neg=[]  # one-sided p values$/;"	v	class:SimCaseSimple
+beta_pval_neg_fdr	mleclassdef.py	/^  beta_pval_neg_fdr=[]  # one-sided p values$/;"	v	class:SimCaseSimple
+beta_pval_pos	mleclassdef.py	/^  beta_pval_pos=[]  # one-sided p values$/;"	v	class:SimCaseSimple
+beta_pval_pos_fdr	mleclassdef.py	/^  beta_pval_pos_fdr=[]  # one-sided p values$/;"	v	class:SimCaseSimple
+beta_zscore	mleclassdef.py	/^  beta_zscore=[]$/;"	v	class:SimCaseSimple
+bins	fdr_calculation.py	/^                             bins=100,$/;"	v
+bins	fdr_calculation.py	/^                      bins=100,$/;"	v
+bins	fdr_calculation.py	/^                    bins=100,$/;"	v
+bisect	fdr_calculation.py	/^from bisect import bisect$/;"	i
+cache	mledesignmat.py	/^  cache={}$/;"	v	class:DesignMatCache
+ceil	mlelowess.py	/^from math import ceil$/;"	i
+closeRTemplate	testVisual.py	/^  def closeRTemplate(self):$/;"	m	class:VisualRValue
+closeRTemplate	testVisualCount.py	/^  def closeRTemplate(self):$/;"	m	class:VisualRCount
+color	fdr_calculation.py	/^                             color="red",$/;"	v
+color	fdr_calculation.py	/^                      color="black",$/;"	v
+color	fdr_calculation.py	/^                    color="blue",$/;"	v
+comparisonlabel	testVisual.py	/^  comparisonlabel=[]; # label for comparison$/;"	v	class:VisualRValue
+copy	mleem.py	/^import copy$/;"	i
+cpindex	testVisual.py	/^  cpindex=[]$/;"	v	class:VisualRValue
+cplabel	testVisual.py	/^  cplabel=''$/;"	v	class:VisualRValue
+crispr_test	crisprFunction.py	/^def crispr_test(tab,ctrlg,testg, destfile,sgrna2genelist,args):$/;"	f
+crisprseq_parseargs	argsParser.py	/^def crisprseq_parseargs():$/;"	f
+cumulative	fdr_calculation.py	/^                             cumulative=True,$/;"	v
+cumulative	fdr_calculation.py	/^                      cumulative=True,$/;"	v
+cumulative	fdr_calculation.py	/^                    cumulative=True,$/;"	v
+d	fdr_calculation.py	/^        d = data[["p." + sel, "fdr." + sel]].copy()$/;"	v
+data	fdr_calculation.py	/^    data = pd.read_table(sys.stdin)$/;"	v
+decformat	mleclassdef.py	/^def decformat(x):$/;"	f
+design_mat	mleclassdef.py	/^  design_mat=[]$/;"	v	class:SimCaseSimple
+dispersion_estimate	mleclassdef.py	/^  dispersion_estimate=None$/;"	v	class:SimCaseSimple
+division	fdr_calculation.py	/^from __future__ import print_function, division$/;"	i
+est_null_prop_continous	fdr_calculation.py	/^def est_null_prop_continous(pvalues):$/;"	f
+est_significant_prop	fdr_calculation.py	/^def est_significant_prop(sorted_pvalues):$/;"	f
+extended_design_mat	mleclassdef.py	/^  extended_design_mat=[]$/;"	v	class:SimCaseSimple
+f	mlelowess.py	/^    f = 0.25$/;"	v
+fastqfile	testVisualCount.py	/^  fastqfile=[]; # fastq files$/;"	v	class:VisualRCount
+fastqlabels	testVisualCount.py	/^  fastqlabels=[]; # fastq labels$/;"	v	class:VisualRCount
+fdr_pounds_continuous	fdr_calculation.py	/^def fdr_pounds_continuous(pvalues):$/;"	f
+gene_fdr_correction	mleclassdef.py	/^def gene_fdr_correction(allgenedict, method):$/;"	f
+gene_fdr_correction	mlemageck.py	/^  from mageck.mleclassdef import gene_fdr_correction;$/;"	i
+gene_to_printfield	mleclassdef.py	/^  def gene_to_printfield(self,onesided=False):$/;"	m	class:SimCaseSimple
+generatePDF	testVisual.py	/^  def generatePDF(self,keeptmp=False):$/;"	m	class:VisualRValue
+generatePDF	testVisualCount.py	/^  def generatePDF(self,keeptmp=False):$/;"	m	class:VisualRCount
+genesummaryfile	testVisual.py	/^  genesummaryfile=''$/;"	v	class:VisualRValue
+gentestcase1	mlegensimexamples.py	/^def gentestcase1(nsg=10):$/;"	f
+gentestcase2	mlegensimexamples.py	/^def gentestcase2(nsg=10):$/;"	f
+gentestcase3	mlegensimexamples.py	/^def gentestcase3(nsg=10,desmat=None):$/;"	f
+getGeneSummaryStat	testVisual.py	/^  def getGeneSummaryStat(self,isplot=True):$/;"	m	class:VisualRValue
+getMeans	crisprFunction.py	/^def getMeans(matt):$/;"	f
+getNBPValue	crisprFunction.py	/^def getNBPValue(mean0,var0,mean1, lower=False,log=False):$/;"	f
+getNormalPValue	crisprFunction.py	/^def getNormalPValue(mean0,var0,mean1, lower=False):$/;"	f
+getVars	crisprFunction.py	/^def getVars(matt):$/;"	f
+get_lm_var	mlemeanvar.py	/^  def get_lm_var(self,klist,returnalpha=False):$/;"	m	class:MeanVarModel
+get_lowess_var	mlemeanvar.py	/^  def get_lowess_var(self,klist,returnalpha=False):$/;"	m	class:MeanVarModel
+get_mean_var_residule	mlemeanvar.py	/^  def get_mean_var_residule(self,allgenedict):$/;"	m	class:MeanVarModel
+get_record	mledesignmat.py	/^  def get_record(n):$/;"	m	class:DesignMatCache
+getadjustvar	crisprFunction.py	/^def getadjustvar(coef,meanval,method='mixed'):$/;"	f
+getcounttablefromfile	mageckCount.py	/^def getcounttablefromfile(filename):$/;"	f
+getextenddesignmat	mledesignmat.py	/^def getextenddesignmat(nsg,nsample,designmat,includebase=False):$/;"	f
+getgeomean	crisprFunction.py	/^def getgeomean(v):$/;"	f
+getloglikelihood	mleem.py	/^def getloglikelihood(kmat,mu_estimate,alpha):$/;"	f
+getloglikelihood2	mleem.py	/^def getloglikelihood2(kmat,mu_estimate,alpha,sumup=False,log=True):$/;"	f
+getnormcdf	crisprFunction.py	/^def getnormcdf(x,lowertail=True):$/;"	f
+getsimpledesignmat	mledesignmat.py	/^def getsimpledesignmat(n):$/;"	f
+gini	testVisualCount.py	/^  gini=[];  # gini index$/;"	v	class:VisualRCount
+groupby	fdr_calculation.py	/^from itertools import groupby$/;"	i
+has_record	mledesignmat.py	/^  def has_record(n):$/;"	m	class:DesignMatCache
+histtype	fdr_calculation.py	/^                             histtype="step",$/;"	v
+histtype	fdr_calculation.py	/^                      histtype="step",$/;"	v
+histtype	fdr_calculation.py	/^                    histtype="step",$/;"	v
+insertClusteringPlot	testVisualCount.py	/^  def insertClusteringPlot(self,filename):$/;"	m	class:VisualRCount
+insertPCAPlot	testVisualCount.py	/^  def insertPCAPlot(self,filename):$/;"	m	class:VisualRCount
+insertReadCountBoxPlot	testVisualCount.py	/^  def insertReadCountBoxPlot(self,filename):$/;"	m	class:VisualRCount
+isefficient	mleclassdef.py	/^  isefficient=[]$/;"	v	class:SimCaseSimple
+iteratenbem	mleem.py	/^def iteratenbem(sk,debug=True,estimateeff=False,updateeff=True,plot=False,alpha_val=0.01,meanvarmodel=None,restart=False,removeoutliers=False,size_factor=None):$/;"	f
+iteratenbem	mlemageck.py	/^  from mageck.mleem import iteratenbem,iteratenbem_permutation$/;"	i
+iteratenbem_permutation	mleem.py	/^def iteratenbem_permutation(genedict,debug=True,nround=100,removeoutliers=False,size_factor=None):$/;"	f
+iteratenbem_permutation	mlemageck.py	/^  from mageck.mleem import iteratenbem,iteratenbem_permutation$/;"	i
+label	fdr_calculation.py	/^                             label="FDR (Pounds)")$/;"	v
+label	fdr_calculation.py	/^                      label="FDR (BH)")$/;"	v
+label	fdr_calculation.py	/^                    label="p-value")$/;"	v
+label	fdr_calculation.py	/^                 label="estimated true null hypotheses (Pounds)")$/;"	v
+leastsquare	crisprFunction.py	/^def leastsquare(x,y,weight=None):$/;"	f
+linalg	mleargparse.py	/^    import numpy.linalg as linalg$/;"	i
+linalg	mleem.py	/^import numpy.linalg as linalg$/;"	i
+linalg	mlegensimexamples.py	/^import numpy.linalg as linalg$/;"	i
+linalg	mlelowess.py	/^from scipy import linalg$/;"	i
+linalg	mlemageck.py	/^  import numpy.linalg as linalg$/;"	i
+linalg	mlemeanvar.py	/^import numpy.linalg as linalg$/;"	i
+linregress	mlemeanvar.py	/^from scipy.stats import linregress$/;"	i
+list_k	mlemeanvar.py	/^  list_k=None$/;"	v	class:MeanVarModel
+list_lowess	mlemeanvar.py	/^  list_lowess=None$/;"	v	class:MeanVarModel
+list_res	mlemeanvar.py	/^  list_res=None$/;"	v	class:MeanVarModel
+lm_coeff	mlemeanvar.py	/^  lm_coeff=0.0$/;"	v	class:MeanVarModel
+lm_intercept	mlemeanvar.py	/^  lm_intercept=0.0$/;"	v	class:MeanVarModel
+loadGeneExp	testVisual.py	/^  def loadGeneExp(self,genelist,nttab,sgrna2genelist,collabels):$/;"	m	class:VisualRValue
+loadSelGene	testVisual.py	/^  def loadSelGene(self,targetgene):$/;"	m	class:VisualRValue
+loadSelGeneWithExp	testVisual.py	/^  def loadSelGeneWithExp(self,targetgene,nttab,sgrna2genelist,collabels,k=10):$/;"	m	class:VisualRValue
+loadTopK	testVisual.py	/^  def loadTopK(self, filename, k=10):$/;"	m	class:VisualRValue
+loadTopKWithExp	testVisual.py	/^  def loadTopKWithExp(self,filename,nttab,sgrna2genelist,collabels,k=10):$/;"	m	class:VisualRValue
+logging	argsParser.py	/^import logging$/;"	i
+logging	crisprFunction.py	/^import logging$/;"	i
+logging	fileOps.py	/^import logging$/;"	i
+logging	mageckCount.py	/^import logging$/;"	i
+logging	mleargparse.py	/^import logging$/;"	i
+logging	mledesignmat.py	/^import logging$/;"	i
+logging	mleem.py	/^import logging$/;"	i
+logging	mleinstanceio.py	/^import logging$/;"	i
+logging	mlemageck.py	/^import logging$/;"	i
+logging	mlemeanvar.py	/^import logging$/;"	i
+logging	mlesgeff.py	/^import logging$/;"	i
+logging	pathwayFunc.py	/^import logging$/;"	i
+logging	testVisual.py	/^import logging$/;"	i
+logging	testVisualCount.py	/^import logging$/;"	i
+lowess	mlelowess.py	/^def lowess(x, y, f=2.\/3., iter=3):$/;"	f
+lowess_search	mlemeanvar.py	/^  lowess_search={} # used to identify the lowess regression values of log(variance+0.01)$/;"	v	class:MeanVarModel
+mageck_pathway_standardize	pathwayFunc.py	/^def mageck_pathway_standardize(gdict):$/;"	f
+mageck_pathway_ztest	pathwayFunc.py	/^def mageck_pathway_ztest(args,gdict,pdict):$/;"	f
+mageck_pathway_ztest_permutation	pathwayFunc.py	/^def mageck_pathway_ztest_permutation(args,gdict,pdict,pdictpvals):$/;"	f
+mageck_pathwaygsa	pathwayFunc.py	/^def mageck_pathwaygsa(args):$/;"	f
+mageck_pathwayrra	pathwayFunc.py	/^def mageck_pathwayrra(args):$/;"	f
+mageck_pathwayrra_onedir	pathwayFunc.py	/^def mageck_pathwayrra_onedir(args,pdict,cid,sourcefile,rra_path_input_file,rra_path_output_file):$/;"	f
+mageck_pathwaytest	pathwayFunc.py	/^def mageck_pathwaytest(args):$/;"	f
+mageck_printdict	mageckCount.py	/^def mageck_printdict(dict0,args,sgdict,sampledict,sampleids):$/;"	f
+mageck_read_GMT	pathwayFunc.py	/^def mageck_read_GMT(args):$/;"	f
+mageck_readgeneranking	pathwayFunc.py	/^def mageck_readgeneranking(fname,args,log2=False,columnid=2):$/;"	f
+mageck_removetmprra	pathwayFunc.py	/^def mageck_removetmprra(args):$/;"	f
+mageckcount_checkargs	mageckCount.py	/^def mageckcount_checkargs(args):$/;"	f
+mageckcount_checklists	mageckCount.py	/^def mageckcount_checklists(args):$/;"	f
+mageckcount_gini	mageckCount.py	/^def mageckcount_gini(x):$/;"	f
+mageckcount_main	mageckCount.py	/^def mageckcount_main(args):$/;"	f
+mageckcount_mergedict	mageckCount.py	/^def mageckcount_mergedict(dict0,dict1):$/;"	f
+mageckcount_parseargs	mageckCount.py	/^def mageckcount_parseargs():$/;"	f
+mageckcount_printdict	mageckCount.py	/^def mageckcount_printdict(dict0,args,ofile,ounmappedfile,sgdict,datastat,sep='\\t'):$/;"	f
+mageckcount_printstat	mageckCount.py	/^def mageckcount_printstat(args,datastat):$/;"	f
+mageckcount_processonefile	mageckCount.py	/^def mageckcount_processonefile(filename,args,ctab,genedict,datastat):$/;"	f
+mageckcount_revcomp	mageckCount.py	/^def mageckcount_revcomp(x):$/;"	f
+mageckmle_main	mlemageck.py	/^def mageckmle_main(pvargs=None,parsedargs=None,returndict=False):$/;"	f
+mageckmle_parseargs	mleargparse.py	/^def mageckmle_parseargs(pvargs=None):$/;"	f
+mageckmle_postargs	mleargparse.py	/^def mageckmle_postargs(args):$/;"	f
+magecktest_main	crisprFunction.py	/^def magecktest_main(args):$/;"	f
+magecktest_removetmp	crisprFunction.py	/^def magecktest_removetmp(prefix):$/;"	f
+mappedreads	testVisualCount.py	/^  mappedreads=[]; # # mapped reads$/;"	v	class:VisualRCount
+math	crisprFunction.py	/^import math$/;"	i
+math	fileOps.py	/^import math$/;"	i
+math	mageckCount.py	/^import math$/;"	i
+math	mleem.py	/^import math$/;"	i
+math	mlegensimexamples.py	/^import math$/;"	i
+math	mlelowess.py	/^    import math$/;"	i
+math	mlemageck.py	/^import math$/;"	i
+math	mlemeanvar.py	/^import math$/;"	i
+matplotlib	fdr_calculation.py	/^    import matplotlib.pyplot as plt$/;"	i
+matplotlib	mleem.py	/^  import matplotlib.pyplot as plt$/;"	i
+merge_rank_files	fileOps.py	/^def merge_rank_files(lowfile,highfile,outfile,args):$/;"	f
+merge_rank_summary_files	fileOps.py	/^def merge_rank_summary_files(lowfile,highfile,outfile,args,lowfile_prefix='',highfile_prefix=''):$/;"	f
+model_mean_var_by_lm	mlemeanvar.py	/^  def model_mean_var_by_lm(self):$/;"	m	class:MeanVarModel
+model_mean_var_by_lowess	mlemeanvar.py	/^  def model_mean_var_by_lowess(self):$/;"	m	class:MeanVarModel
+modelmeanvar	crisprFunction.py	/^def modelmeanvar(ctable,method='edger'):$/;"	f
+mu	mleclassdef.py	/^  mu=[]$/;"	v	class:SimCaseSimple
+n	mlelowess.py	/^    n = 100$/;"	v
+nb_count	mleclassdef.py	/^  nb_count=[]$/;"	v	class:SimCaseSimple
+nb_p	mleclassdef.py	/^  nb_p=[]$/;"	v	class:SimCaseSimple
+nb_r	mleclassdef.py	/^  nb_r=[]$/;"	v	class:SimCaseSimple
+nbinom	crisprFunction.py	/^  from scipy.stats import nbinom$/;"	i
+nbinom	mleargparse.py	/^    from scipy.stats import nbinom$/;"	i
+nbinom	mleem.py	/^from scipy.stats import nbinom$/;"	i
+nbinom	mlegensimexamples.py	/^from scipy.stats import nbinom$/;"	i
+nbinom	mlemageck.py	/^  from scipy.stats import nbinom$/;"	i
+nbinom	mlemeanvar.py	/^from scipy.stats import nbinom$/;"	i
+nfdr1	testVisual.py	/^  nfdr1=[]; # genes with FDR < 1, 5, 25%$/;"	v	class:VisualRValue
+nfdr25	testVisual.py	/^  nfdr25=[]$/;"	v	class:VisualRValue
+nfdr5	testVisual.py	/^  nfdr5=[]$/;"	v	class:VisualRValue
+ngenes	testVisual.py	/^  ngenes=[]; # number of genes$/;"	v	class:VisualRValue
+norm	mleem.py	/^from scipy.stats import norm$/;"	i
+normalizeCounts	mageckCount.py	/^def normalizeCounts(ctable,method='median',returnfactor=False,reversefactor=False):$/;"	f
+normalizeCounts	mlemageck.py	/^  from mageck.mageckCount import normalizeCounts$/;"	i
+np	mleargparse.py	/^    import numpy as np$/;"	i
+np	mleclassdef.py	/^    import numpy as np$/;"	i
+np	mledesignmat.py	/^import numpy as np$/;"	i
+np	mleem.py	/^import numpy as np$/;"	i
+np	mlegensimexamples.py	/^import numpy as np$/;"	i
+np	mleinstanceio.py	/^import numpy as np$/;"	i
+np	mlelowess.py	/^import numpy as np$/;"	i
+np	mlemageck.py	/^  import numpy as np$/;"	i
+np	mlemeanvar.py	/^import numpy as np$/;"	i
+np	mlesgeff.py	/^import numpy as np$/;"	i
+null_prop	fdr_calculation.py	/^        null_prop = est_null_prop_continous(pvalues)$/;"	v
+numpy	mleargparse.py	/^    import numpy.linalg as linalg$/;"	i
+numpy	mleem.py	/^import numpy.linalg as linalg$/;"	i
+numpy	mlegensimexamples.py	/^import numpy.linalg as linalg$/;"	i
+numpy	mlemageck.py	/^  import numpy.linalg as linalg$/;"	i
+numpy	mlemeanvar.py	/^import numpy.linalg as linalg$/;"	i
+os	testVisual.py	/^import os$/;"	i
+os	testVisualCount.py	/^import os$/;"	i
+outprefix	testVisual.py	/^  outprefix='sample1'$/;"	v	class:VisualRValue
+outprefix	testVisualCount.py	/^  outprefix='sample1'$/;"	v	class:VisualRCount
+outrfh	testVisual.py	/^  outrfh=None;  # file handle for R file$/;"	v	class:VisualRValue
+outrfh	testVisualCount.py	/^  outrfh=None;  # file handle for R file$/;"	v	class:VisualRCount
+outrnwfh	testVisual.py	/^  outrnwfh=None$/;"	v	class:VisualRValue
+outrnwfh	testVisualCount.py	/^  outrnwfh=None$/;"	v	class:VisualRCount
+outrnwstring	testVisual.py	/^  outrnwstring=''$/;"	v	class:VisualRValue
+outrnwstring	testVisualCount.py	/^  outrnwstring=''$/;"	v	class:VisualRCount
+pFDR	fdr_calculation.py	/^def pFDR(pvalues, method='fdr'):$/;"	f
+pFDR	fileOps.py	/^    from mageck.fdr_calculation import pFDR$/;"	i
+pFDR	mleclassdef.py	/^    from mageck.fdr_calculation import pFDR$/;"	i
+parse_designmat	mleargparse.py	/^  from mageck.mledesignmat import parse_designmat$/;"	i
+parse_designmat	mledesignmat.py	/^def parse_designmat(designmatstr):$/;"	f
+parse_designmat_file	mledesignmat.py	/^def parse_designmat_file(designmatstr):$/;"	f
+parse_designmat_str	mledesignmat.py	/^def parse_designmat_str(designmatstr):$/;"	f
+parse_sampleids	fileOps.py	/^def parse_sampleids(samplelabel,ids):$/;"	f
+pd	fdr_calculation.py	/^    import pandas as pd$/;"	i
+pl	mlelowess.py	/^    import pylab as pl$/;"	i
+plot_main	testVisual.py	/^def plot_main(args):$/;"	f
+plotem	mleem.py	/^def plotem(logll,betaval,effval=None,filename='sample1'):$/;"	f
+plt	fdr_calculation.py	/^    import matplotlib.pyplot as plt$/;"	i
+plt	mleem.py	/^  import matplotlib.pyplot as plt$/;"	i
+prefix	mleclassdef.py	/^  prefix='sample1'$/;"	v	class:SimCaseSimple
+print_function	argsParser.py	/^from __future__ import print_function$/;"	i
+print_function	crisprFunction.py	/^from __future__ import print_function$/;"	i
+print_function	fdr_calculation.py	/^from __future__ import print_function, division$/;"	i
+print_function	fileOps.py	/^from __future__ import print_function$/;"	i
+print_function	mageckCount.py	/^from __future__ import print_function$/;"	i
+print_function	mleargparse.py	/^from __future__ import print_function$/;"	i
+print_function	mleclassdef.py	/^from __future__ import print_function$/;"	i
+print_function	mledesignmat.py	/^from __future__ import print_function$/;"	i
+print_function	mleem.py	/^from __future__ import print_function$/;"	i
+print_function	mlegensimexamples.py	/^from __future__ import print_function$/;"	i
+print_function	mleinstanceio.py	/^from __future__ import print_function$/;"	i
+print_function	mlemageck.py	/^from __future__ import print_function$/;"	i
+print_function	mlemeanvar.py	/^from __future__ import print_function$/;"	i
+print_function	mlesgeff.py	/^from __future__ import print_function$/;"	i
+print_function	pathwayFunc.py	/^from __future__ import print_function$/;"	i
+print_function	testVisual.py	/^from __future__ import print_function$/;"	i
+print_function	testVisualCount.py	/^from __future__ import print_function$/;"	i
+pvalues	fdr_calculation.py	/^        pvalues = list(d["p"].values)$/;"	v
+random	mleem.py	/^import random$/;"	i
+random	mlegensimexamples.py	/^import random$/;"	i
+random	mlemageck.py	/^import random$/;"	i
+random	mlemeanvar.py	/^import random$/;"	i
+random	pathwayFunc.py	/^import random$/;"	i
+rank_association_test	crisprFunction.py	/^def rank_association_test(file,outfile,cutoff,args):$/;"	f
+re	mleem.py	/^import re$/;"	i
+re	mlegensimexamples.py	/^import re$/;"	i
+re	mlemageck.py	/^import re$/;"	i
+re	mlemeanvar.py	/^import re$/;"	i
+re	testVisual.py	/^import re$/;"	i
+re	testVisualCount.py	/^import re$/;"	i
+read_gene_from_file	mleinstanceio.py	/^def read_gene_from_file(filename,includesamples=None):$/;"	f
+read_gene_from_file	mlemageck.py	/^  from mageck.mleinstanceio import read_gene_from_file,write_gene_to_file,write_sgrna_to_file$/;"	i
+read_sgrna_eff	mlemageck.py	/^  from mageck.mlesgeff import read_sgrna_eff,sgrna_eff_initial_guess$/;"	i
+read_sgrna_eff	mlesgeff.py	/^def read_sgrna_eff(args):$/;"	f
+reads	testVisualCount.py	/^  reads=[]; # read counts$/;"	v	class:VisualRCount
+remove_outlier	mleem.py	/^def remove_outlier(y_residule,w_matrix,outprob=0.05):$/;"	f
+rnwtemplatestr	testVisual.py	/^  rnwtemplatestr=''$/;"	v	class:VisualRValue
+rnwtemplatestr	testVisualCount.py	/^  rnwtemplatestr=''$/;"	v	class:VisualRCount
+rtemplate_gene_str	testVisual.py	/^  rtemplate_gene_str='';  # template string$/;"	v	class:VisualRValue
+rtemplatestr	testVisual.py	/^  rtemplatestr='';  # template string$/;"	v	class:VisualRValue
+save_k_residule_to_file	mlemeanvar.py	/^  def save_k_residule_to_file(self,filename):$/;"	m	class:MeanVarModel
+save_record	mledesignmat.py	/^  def save_record(orig_design_mat,n):$/;"	m	class:DesignMatCache
+scipy	mleargparse.py	/^    import scipy$/;"	i
+scipy	mleem.py	/^import scipy$/;"	i
+scipy	mlegensimexamples.py	/^import scipy$/;"	i
+scipy	mlemageck.py	/^  import scipy$/;"	i
+scipy	mlemeanvar.py	/^import scipy$/;"	i
+selection	testVisual.py	/^  selection=[]; # selections$/;"	v	class:VisualRValue
+setPrefix	testVisual.py	/^  def setPrefix(self,prefix):$/;"	m	class:VisualRValue
+setPrefix	testVisualCount.py	/^  def setPrefix(self,prefix):$/;"	m	class:VisualRCount
+sgrna_eff_initial_guess	mlemageck.py	/^  from mageck.mlesgeff import read_sgrna_eff,sgrna_eff_initial_guess$/;"	i
+sgrna_eff_initial_guess	mlesgeff.py	/^def sgrna_eff_initial_guess(args,allgenedict):$/;"	f
+sgrna_kvalue	mleclassdef.py	/^  sgrna_kvalue=[] # count matrix; is usually (2*(nsample)+1)*1$/;"	v	class:SimCaseSimple
+sgrna_residule	mleclassdef.py	/^  sgrna_residule=[] # fitted residule; the same size as sgrna_kvalue$/;"	v	class:SimCaseSimple
+sgrnaid	mleclassdef.py	/^  sgrnaid=[]$/;"	v	class:SimCaseSimple
+startRTemplate	testVisual.py	/^  def startRTemplate(self):$/;"	m	class:VisualRValue
+startRTemplate	testVisualCount.py	/^  def startRTemplate(self):$/;"	m	class:VisualRCount
+string	mageckCount.py	/^import string$/;"	i
+subprocess	fileOps.py	/^import subprocess$/;"	i
+sys	argsParser.py	/^import sys$/;"	i
+sys	crisprFunction.py	/^import sys$/;"	i
+sys	fdr_calculation.py	/^    import sys$/;"	i
+sys	fileOps.py	/^import sys$/;"	i
+sys	mageckCount.py	/^import sys$/;"	i
+sys	mleargparse.py	/^import sys$/;"	i
+sys	mleem.py	/^import sys$/;"	i
+sys	mlegensimexamples.py	/^import sys$/;"	i
+sys	mleinstanceio.py	/^import sys$/;"	i
+sys	mlemageck.py	/^import sys$/;"	i
+sys	mlemeanvar.py	/^import sys$/;"	i
+sys	mlesgeff.py	/^import sys$/;"	i
+sys	pathwayFunc.py	/^import sys$/;"	i
+sys	testVisual.py	/^import sys$/;"	i
+sys	testVisualCount.py	/^import sys$/;"	i
+systemcall	fileOps.py	/^def systemcall(command, cmsg=True):$/;"	f
+targetgene	testVisual.py	/^  targetgene=[]$/;"	v	class:VisualRValue
+testcase1	mlegensimexamples.py	/^def testcase1():$/;"	f
+testcase2	mlegensimexamples.py	/^def testcase2():$/;"	f
+testcase3	mlegensimexamples.py	/^def testcase3():$/;"	f
+textwrap	testVisualCount.py	/^    import textwrap$/;"	i
+totalsgrnas	testVisualCount.py	/^  totalsgrnas=[]; # # sgRNAs (in the library)$/;"	v	class:VisualRCount
+types	crisprFunction.py	/^import types$/;"	i
+var	mleclassdef.py	/^  var=[]$/;"	v	class:SimCaseSimple
+w_estimate	mleclassdef.py	/^  w_estimate=[]$/;"	v	class:SimCaseSimple
+wholegenometest1	mlegensimexamples.py	/^def wholegenometest1():$/;"	f
+wholegenometest2	mlegensimexamples.py	/^def wholegenometest2(maxgene=np.inf):$/;"	f
+wholegenometest3	mlegensimexamples.py	/^def wholegenometest3(maxgene=np.inf):$/;"	f
+wholegenometest4	mlegensimexamples.py	/^def wholegenometest4(maxgene=np.inf):$/;"	f
+wholegenometest5	mlegensimexamples.py	/^def wholegenometest5(maxgene=np.inf):$/;"	f
+wholegenometest_sam	mlegensimexamples.py	/^def wholegenometest_sam(maxgene=np.inf):$/;"	f
+wholegenometest_shalem	mlegensimexamples.py	/^def wholegenometest_shalem(maxgene=np.inf):$/;"	f
+wholegenometest_shalem_plx7	mlegensimexamples.py	/^def wholegenometest_shalem_plx7(maxgene=np.inf):$/;"	f
+wholegenometest_t47d	mlegensimexamples.py	/^def wholegenometest_t47d(maxgene=np.inf):$/;"	f
+wholegenometest_tim	mlegensimexamples.py	/^def wholegenometest_tim(maxgene=np.inf):$/;"	f
+writeCountSummary	testVisualCount.py	/^  def writeCountSummary(self):$/;"	m	class:VisualRCount
+writeCountSummaryToTxt	testVisualCount.py	/^  def writeCountSummaryToTxt(self,txtfile):$/;"	m	class:VisualRCount
+writeGeneSummaryStatToBuffer	testVisual.py	/^  def writeGeneSummaryStatToBuffer(self):$/;"	m	class:VisualRValue
+write_gene_to_file	mleinstanceio.py	/^def write_gene_to_file(allgenedict,outfile,betalabels=None):$/;"	f
+write_gene_to_file	mlemageck.py	/^  from mageck.mleinstanceio import read_gene_from_file,write_gene_to_file,write_sgrna_to_file$/;"	i
+write_sgrna_to_file	mleinstanceio.py	/^def write_sgrna_to_file(allgenedict,outfile):$/;"	f
+write_sgrna_to_file	mlemageck.py	/^  from mageck.mleinstanceio import read_gene_from_file,write_gene_to_file,write_sgrna_to_file$/;"	i
+x	mlelowess.py	/^    x = np.linspace(0, 2 * math.pi, n)$/;"	v
+y	mlelowess.py	/^    y = np.sin(x) + 0.3*np.random.randn(n)$/;"	v
+yest	mlelowess.py	/^    yest = lowess(x, y, f=f, iter=3)$/;"	v
+zerocounts	testVisualCount.py	/^  zerocounts=[]; # # 0-count sgRNAs$/;"	v	class:VisualRCount

@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""MAGeCK2 main program
+Copyright (c) 2021 Wei Li 
+This code is free software; you can redistribute it and/or modify it
+under the terms of the BSD License (see the file COPYING included with
+the distribution).
+@status:  experimental
+@version: $Revision$
+@author:  Wei Li 
+@contact: li.david.wei AT gmail.com
+"""
+
+
+from __future__ import print_function
+import sys
+import argparse
+import random
+import bisect
+import logging
+
+from mageck2 import *
+from mageck2.crisprFunction import *
+from mageck2.mageckCount import *
+from mageck2.pathwayFunc import *
+from mageck2.argsParser import *
+from mageck2.testVisual import *
+from mageck2.version import __version__
+
+
+
+# main function
+def main():
+  args=crisprseq_parseargs();
+  logging.info('Welcome to MAGeCK2 v'+__version__+'. Command: '+args.subcmd);
+  # get read counts
+  if args.subcmd == 'run' or args.subcmd == 'count':
+    mageckcount_main(args);
+  
+  # stat test
+  if args.subcmd == 'run' or args.subcmd == 'test':
+    magecktest_main(args);
+  
+  # pathway test
+  if args.subcmd == 'pathway':
+    mageck_pathwaytest(args);
+  
+  # visualizaiton
+  if args.subcmd == 'plot':
+    plot_main(args);
+      
+      
+
+
+if __name__ == '__main__':
+  try:
+    main();
+  except KeyboardInterrupt:
+    sys.stderr.write("User interrupt me! ;-) Bye!\n")
+    sys.exit(0)
+
