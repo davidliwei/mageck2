@@ -136,9 +136,22 @@ else:
   def mageckcount_revcomp(x):
     return x.translate(trans_table)[::-1]
 
+
 def mageckcount_mergedict(dict0,dict1):
   '''
   Merge all items in dict1 to dict0.
+
+  Parameters
+  ----------
+  dict0
+    A {seq:[count_0,...,count_k]} dictionary 
+  dict1
+    A {seq:count} dictionary 
+
+  Return value
+  ----------
+  dict0
+    Will be updated as {seq:[count_0,...,count_k,count_(k+1)]} 
   '''
   nsample=0
   if len(dict0)>0:
@@ -160,10 +173,84 @@ def mageckcount_mergedict(dict0,dict1):
 
 
 
-def mageckcount_printdict(dict0,args,ofile,ounmappedfile,sgdict,datastat,sep='\t'):
+
+def mageckcount_mergeumidict(dict0,dict1):
   '''
-  Write the table count to file
+  Merge all items in dict1 to dict0 for umi counts.
+
+  Parameters
+  ----------
+  dict0
+    A  {seq:{umi:[count_0,...,count_k]}} 
+  dict1
+    A  {seq:{umi:count}} (dict)
+
+  Return value
+  ----------
+  dict0
+    Will be updated as {seq:{umi:[count_0,...,count_k,count_(k+1)]}} 
   '''
+  nsample=0
+  if len(dict0)>0:
+      umidict=list(dict0.values())[0]
+      nsample=len(list(umidict.values())[0]) 
+  for (k,umidict0) in dict0.items():
+    if k in dict1:
+      umidict1=dict1[k]
+      # merge umi counts
+      # umidict0 is {umi:[count_0,...count_k]}
+      # umidict1 is {umi:count}
+      mageckcount_mergedict(umidict0,umidict1)
+    else:
+      # add "0"s 
+      for (umi,countv) in umidict0.items():
+        countv+=[0]
+  # for the remaining guides not in dict0, fill up the records in dict0
+  for (k,umidict1) in dict1.items():
+    if k not in dict0:
+      dict0[k]={}
+      for umi in umidict1.keys():
+        if nsample>0:
+          dict0[k][umi]=[[0]*nsample, umidict1[umi]]
+        else:
+          dict0[k][umi]=[umidict1[umi]]
+  # return dict0
+
+def mageckcount_squashdict(dict0,dict1,isdict=False):
+  '''
+  Squash dictionaries of technical read counts
+
+  Parameters
+  ----------
+  dict0
+    A {seq:count_0} dictionary 
+  dict1
+    A {seq:count} dictionary 
+  isdict
+    If set, dict0 and dict1 will become {seq:{umi:count}}
+
+  Return value
+  ----------
+  dict0
+    Will be updated as {seq:count_0+count]} 
+
+  '''
+  if isdict==False:
+    for (k,v) in dict1.items():
+      if k not in dict0:
+        dict0[k]=0
+      dict0[k]+=v
+  else:
+    for (k, umidict1) in dict1.items():
+      if k not in dict0:
+        dict0[k]={}
+      mageckcount_squashdict(dict0[k],dict1[k],isdict=False)
+
+def mageckcount_getsamplelabel(args,datastat):
+  '''
+  Get a list of sample labels
+  '''
+  slabel=[]
   if args.fastq is not None:
     allfastq=args.fastq
     nsample=len(allfastq)
@@ -174,24 +261,63 @@ def mageckcount_printdict(dict0,args,ofile,ounmappedfile,sgdict,datastat,sep='\t
     for (label,dsitem) in datastat.items():
       slabel[dsitem['sampleindex']]=label
     #slabel=datastat.keys()
+  return slabel
+
+def mageckcount_printdict(dict0,args,ofile,ounmappedfile,sgdict,datastat,sep='\t'):
+  '''
+  Write the table count to file
+  '''
+
+  slabel=mageckcount_getsamplelabel(args,datastat)
   # print header
   print('sgRNA'+sep+'Gene'+sep+sep.join(slabel),file=ofile)
   # print items
   if len(sgdict)==0:
     for (k,v) in dict0.items():
-      print(k+sep+'None'+sep+sep.join([str(x) for x in v]),file=ofile)
+      print(sep.join([k,'None']+[str(x) for x in v]),file=ofile)
   else:
     for (k,v) in dict0.items():
       if k not in sgdict: # only print those in the genedict
         if ounmappedfile != None:
-          print(sep.join([k,k])+sep+sep.join([str(x) for x in v]),file=ounmappedfile)
+          print(sep.join([k,k]+[str(x) for x in v]),file=ounmappedfile)
         continue
       sx=sgdict[k]
-      print(sep.join([sx[0],sx[1]])+sep+sep.join([str(x) for x in v]),file=ofile)
+      print(sep.join([sx[0],sx[1]]+[str(x) for x in v]),file=ofile)
     # print the remaining counts, fill with 0
     for (k,v) in sgdict.items():
       if k not in dict0:
-        print(sep.join([v[0],v[1]])+sep+sep.join(["0"]*nsample),file=ofile)
+        print(sep.join([v[0],v[1]]+["0"]*nsample),file=ofile)
+
+def mageckcount_printumidict(dict0,args,ofile,ounmappedfile,sgdict,datastat,sep='\t'):
+  '''
+  Write the table count to file
+  '''
+
+  slabel=mageckcount_getsamplelabel(args,datastat)
+  # print header
+  print('sgRNA_umi'+sep+'Gene'+sep+sep.join(slabel),file=ofile)
+  # print items
+  if len(sgdict)==0:
+    for (k,umidict) in dict0.items():
+      for (umi,v) in umidict.items():
+        print(sep.join([k+'_'+umi,'None']+[str(x) for x in v]),file=ofile)
+  else:
+    for (k,umidict) in dict0.items():
+      if k not in sgdict: # only print those in the genedict
+        if ounmappedfile != None:
+          for (umi,v) in umidict.items():
+            print(sep.join([k+'_'+umi,k]+[str(x) for x in v]),file=ounmappedfile)
+        continue
+      sx=sgdict[k]
+      for (umi,v) in umidict.items():
+        print(sep.join( [sx[0]+'_'+umi,sx[1]] + [str(x) for x in v]),file=ofile)
+    # print the remaining counts, fill with 0
+    for (k,v) in sgdict.items():
+      if k not in dict0:
+        for (umi,v) in umidict.items():
+          print(sep.join([v[0],v[1]]+["0"]*nsample),file=ofile)
+
+
 
 def mageck_printdict(dict0,args,sgdict,sampledict,sampleids):
   """Write the normalized read counts to file
@@ -316,6 +442,7 @@ def mageckcount_processfastq(args,genedict,sgdict):
       datastat[fi]={}
       datastat[fi]['label']=slabel[i]
   alldict={}
+  alldict_umi={}
 
   adjust = True
   if paired and args.count_pair.upper() == 'TRUE':
@@ -324,6 +451,7 @@ def mageckcount_processfastq(args,genedict,sgdict):
   # go through the fastq files
   for filenamelist in listfq:
     dict0={}
+    dict0_umi={}
     j = 0
     for filename in filenamelist: # technical replicates; should be merged together
       if paired:
@@ -331,34 +459,50 @@ def mageckcount_processfastq(args,genedict,sgdict):
       else:
         pairedfile=None
       dict00={}
+      dict00_umi={}
       if filename.upper().endswith('BAM'):
         mageckcount_processonefile_bam(filename,args,dict00,sgdict,datastat[filename])
       elif filename.upper().endswith('SAM'):
         mageckcount_processonefile_sam(filename,args,dict00,sgdict,datastat[filename])
       else:
-        mageckcount_processonefile(filename,args,dict00,sgdict,datastat[filename], pairedfile, adjust=adjust)
-      for (k,v) in dict00.items():
-        if k not in dict0:
-          dict0[k]=0
-        dict0[k]+=v
+        mageckcount_processonefile(filename,args,dict00,dict00_umi,sgdict,datastat[filename], pairedfile, adjust=adjust)
+      # squash technical counts
+      mageckcount_squashdict(dict0,dict00)
+      if args.umi != 'none':
+        mageckcount_squashdict(dict0_umi,dict00_umi)
       j=j+1
     i=i+1
     mageckcount_mergedict(alldict,dict0)
+    if args.umi != 'none':
+      mageckcount_mergeumidict(alldict_umi,dict0_umi)
+  
   # write to file
   ofilel=open(args.output_prefix+'.count.txt','w')
   if hasattr(args,'unmapped_to_file') and args.unmapped_to_file:
     ounmappedfilel=open(args.output_prefix+'.unmapped.txt','w')
   else:
     ounmappedfilel=None
+
   mageckcount_printdict(alldict,args,ofilel,ounmappedfilel,sgdict,datastat)
+  
   ofilel.close()
   if hasattr(args,'unmapped_to_file') and args.unmapped_to_file:
     ounmappedfilel.close()
+
+  # write umi counts
+  if args.umi != 'none':
+    ofilel=open(args.output_prefix+'.umi_count.txt','w')
+    mageckcount_printumidict(alldict_umi,args,ofilel,None,sgdict,datastat)
+    ofilel.close()
   # write the median normalized read counts to csv file
+  allmappeddict=None
+  allmappeddict_umi=None
   if len(sgdict)>0:
     allmappeddict={k:v for (k,v) in alldict.items() if k in sgdict} # only keep those with known sgRNAs
+    allmappeddict_umi={k:v for (k,v) in alldict_umi.items() if k in sgdict} # only keep those with known sgRNAs
   else:
     allmappeddict=alldict
+    allmappeddict_umi=alldict_umi
   return (allmappeddict,datastat)
 
 
@@ -580,15 +724,6 @@ def mageckcount_main(args):
   mageckcount_printstat(args,datastat)
   return 0
 
-
-
-if __name__ == '__main__':
-  try:
-    args=mageckcount_parseargs()
-    mageckcount_main(args)
-  except KeyboardInterrupt:
-    sys.stderr.write("Interrupted.\n")
-    sys.exit(0)
 
 
 

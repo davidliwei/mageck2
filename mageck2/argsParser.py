@@ -58,6 +58,13 @@ def arg_count(subparser):
   cnt_qcgroup.add_argument('--pdf-report',action='store_true',help='Generate pdf report of the fastq files.')
   cnt_qcgroup.add_argument('--day0-label',help='Turn on the negative selection QC and specify the label for control sample (usually day 0 or plasmid). For every other sample label, the negative selection QC will compare it with day0 sample, and estimate the degree of negative selections in essential genes.')
   cnt_qcgroup.add_argument('--gmt-file',help='The pathway file used for QC, in GMT format. By default it will use the GMT file provided by MAGeCK.')
+
+  cnt_umigroup=subp_count.add_argument_group(title='Optional arguments for searching for UMIs',description='')
+  cnt_umigroup.add_argument('--umi',choices=['none','firstpair','secondpair','auto'],default='none',help='Search UMIs, located within the first pair or the second pair of the read, or automatically search for possible UMIs. If you are aware of the location of the UMI, specify the values of --umi-start/--umi-end (if --umi firstpair), or --umi-start-2/--umi-end-2 (if --umi secondpair). The program will automatically search for UMI locations if --umi auto.')
+  cnt_umigroup.add_argument('--umi-start',type=int,default=-1,help='The relative start position of UMI from guides, if UMI is found on the first pair. For example, for a read NNNNAATACGNNNCGACNNNN with guide AATACG and UMI CGAC, set --umi-start to 4 and --umi-end to 8.')
+  cnt_umigroup.add_argument('--umi-end',type=int,default=-1,help='The relative end position of UMI from guides, if UMI is found on the first pair.')
+  cnt_umigroup.add_argument('--umi-start-2',type=int,default=-1,help='The relative start position of UMI (from the first nucleotide of the read), if UMI is found on the second pair. For example, for a read NNNNCGAC with UMI CGAC, set --umi-start-2 to 4 and --umi-end-2 to 8.')
+  cnt_umigroup.add_argument('--umi-end-2',type=int,default=-1,help='The relative end position of UMI (from the first nucleotide of the read), if UMI is found on the second pair.')
   
 def arg_test(subparser):
   """

@@ -23,7 +23,57 @@ def mageckcount_gini(x):
   gs=1.0-2.0*(n-gssum/ysum)/(n-1)
   return gs
 
-def mageckcount_trim5_auto(filename,args,genedict, revcomp=False):
+def mageckcount_search_variable_region(seqlist):
+  '''
+  Search variable region of the sequence, possibly containing UMIs or the second pair
+  Parameter:
+  -----------
+  seqlist
+    A list of sequence
+  Return value
+  ----------
+  (start,end)
+    A variable region containing guides/UMIs in the seqlist
+  '''
+  count_freq={}
+  for seq in seqlist:
+    sequ=seq.upper()
+    for i in range(len(seq)):
+      if i not in count_freq:
+        count_freq[i]=[0.0,0.0,0.0,0.0]  # A T G C
+      if sequ[i] == 'A':
+        count_freq[i][0]+=1
+      if sequ[i] == 'T':
+        count_freq[i][1]+=1
+      if sequ[i] == 'G':
+        count_freq[i][2]+=1
+      if sequ[i] == 'C':
+        count_freq[i][3]+=1
+  var_start=-1
+  var_end=-1
+  # search for start
+  for x in range(max(count_freq.keys())):
+    freq_vec=count_freq[x]
+    freq_t_sum=max(sum(freq_vec),1)
+    freq_f=[y/freq_t_sum for y in freq_vec]
+    if max(freq_f)>0 and max(freq_f)<0.9:
+      var_start=x
+      break
+  if var_start>=0:
+    for x in range(var_start+1,max(count_freq.keys())):
+      freq_vec=count_freq[x]
+      freq_t_sum=max(sum(freq_vec),1)
+      freq_f=[y/freq_t_sum for y in freq_vec]
+      if max(freq_f)>0 and max(freq_f)<0.9:
+        pass
+      else:
+        var_end=x
+        break
+  return (var_start,var_end)
+  
+
+
+def mageckcount_trim5_auto(filename,args,genedict, revcomp=False,is_second_pair=False,no_search=False):
   '''
   Automatically determine the trim 5 length in one fastq file
   Parameters
@@ -32,9 +82,22 @@ def mageckcount_trim5_auto(filename,args,genedict, revcomp=False):
     Fastq filename to be sequence
   args
     Arguments
+  genedict
+    Library
+  revcomp
+    Shall the reads be reverse complemented?
+  is_second_pair
+    Is this search on the second read of the paired read?
+  no_search
+    Do not search for guide position (return the entire sequence in remainingseq_list). Note that revcomp won't happen
 
   Return value
   -----------
+  candidatetrim5
+    A list of possible trim-5 value
+  remainingseq_list
+    A list of remaining sequences after sgrna
+
   '''
   # ctab={}
   logging.info('Determining the trim-5 length of FASTQ file '+filename+'...')
@@ -56,9 +119,24 @@ def mageckcount_trim5_auto(filename,args,genedict, revcomp=False):
     openobj=gzip.open(filename,'rt')
   else:
     openobj=open(filename)
+  # determine whether trim-5 value is provided in arguments, or will need to determine here
+  trim_5_provided=None
+  if is_second_pair:
+    trim_5_provided=None # trim-5 only works for first pair
+  elif args.trim_5.upper() == 'AUTO' or args.trim_5.upper() == 'AUTOTEST':
+    trim_5_provided=None
+  else:
+    try:
+      trim_5_provided=[int(x) for x in args.trim_5.split(',')]
+      logging.info('Specified trimming length:'+','.join([str(x) for x in candidate_trim5]))
+    except ValueError:
+      logging.error('Integer values must be specified in --trim-5 option')
+
+  
   nline=0
   maxline=100000 # maximum reads tested
   nreadcount=0
+  remainingseq_list=[]
   for line in openobj:
     # line=line.encode('utf-8')
     nline=nline+1
@@ -69,12 +147,18 @@ def mageckcount_trim5_auto(filename,args,genedict, revcomp=False):
       if nreadcount%100000==1:
         logging.info('Processing '+str(round(nreadcount/1000000))+ 'M reads ...')
       fseq=line.strip()
+      if no_search:
+        remainingseq_list+=[fseq]
+        continue
       if len(fseq) not in readlenkey:
         readlenkey[len(fseq)]=0
       readlenkey[len(fseq)]+=1
       # check length
       # for l in lengthpool.keys():
-      for triml in range(len(fseq)-minlengthpool+1):
+      trim_test_range=[tl_r for tl_r in range(len(fseq)-minlengthpool+1)]
+      if trim_5_provided is not None:
+        trim_test_range=trim_5_provided
+      for triml in trim_test_range:
         fseqtrim=fseq[triml:]
         findrecord=False
         for l in lengthpoolkeys: # iterate all possible lengths
@@ -94,6 +178,8 @@ def mageckcount_trim5_auto(filename,args,genedict, revcomp=False):
               trimkey[triml]=0
             trimkey[triml]+=1
             findrecord=True
+            remainingseq=fseqtrim[testl:] # add the remaining sequences
+            remainingseq_list+=[remainingseq]
             break
         # end for l
         if findrecord:
@@ -101,6 +187,10 @@ def mageckcount_trim5_auto(filename,args,genedict, revcomp=False):
       # end for triml 
   # end for line 
   openobj.close()
+
+  if no_search:
+    return ([],remainingseq_list)
+  
   keysorted=sorted(trimkey.items(),key=lambda z: z[1], reverse=True)
   totalmappedreads=sum([x[1] for x in trimkey.items()])
   totalfrac=totalmappedreads*1.0/nreadcount
@@ -131,7 +221,7 @@ def mageckcount_trim5_auto(filename,args,genedict, revcomp=False):
       break
     lastfrac=ksfrac
   logging.info('Auto determination of trim5 results: '+','.join([str(x) for x in candidatetrim5]))
-  return candidatetrim5
+  return (candidatetrim5,remainingseq_list)
   # return 0
 
 
@@ -149,20 +239,44 @@ else:
   def mageckcount_revcomp(x):
     return x.translate(trans_table)[::-1]
 
-def mageckcount_search_trim_and_sglen(args,fseq0,genedict,ctab,candidate_trim5,lengthpoolkeys,revcomp=False):
+def mageckcount_search_trim_and_sglen(args,fseq0,genedict,ctab,ctab_umi,candidate_trim5,lengthpoolkeys,revcomp=False):
   '''
   within one line, search for best matches of 5' trimming length
+  Parameters
+  ------------
+  args
+    arguments
+  fseq0
+    sequence
+  genedict
+    {sequence:(sgRNA_id,gene_id)} dictionary
+  ctab
+    A dictionary of sgRNA sequence and count
+  ctab_umi
+    a {guide:{UMI:count}} dictionary structure
+  candidate_trim5
+    A list of possible trim5 values
+  lengthpoolkeys
+    possible sgrna lengths
+  revcomp
+    Whether to reverse complement the sequence?
+    
   Return value:
-      findrecord
-        True if a record is found, false otherwise
+  ------------
+    findrecord
+      True if a record is found, false otherwise
+    guideseq
+      The guide sequence found; none if not found
   '''
   findrecord=False
   fseq=''
+  matched_seq=None
   for triml in candidate_trim5:
     # check length
     fseq=fseq0[triml:]
     # for l in lengthpool.keys():
     if len(genedict)==0:
+      # WL: looks like this branch will consider the rest of the reads as guides 
       if len(fseq)<args.sgrna_len:
         continue
         #fseq=fseq[:args.sgrna_len]
@@ -191,6 +305,17 @@ def mageckcount_search_trim_and_sglen(args,fseq0,genedict,ctab,candidate_trim5,l
           ctab[fseqc]=0
         ctab[fseqc]=ctab[fseqc]+1
         findrecord=True
+        matched_seq=fseqc
+        if args.umi=='firstpair':
+          # extract UMIs from the first pair
+          if args.umi_start == -1 or args.umi_end == -1:
+            logging.error('Error: umi-start and umi-end has to be greater than zero')
+          umiseq = fseq[(testl+args.umi_start):(testl+args.umi_end)]
+          if fseqc not in ctab_umi:
+            ctab_umi[fseqc]={}
+          if umiseq not in ctab_umi[fseqc]:
+            ctab_umi[fseqc][umiseq]=0
+          ctab_umi[fseqc][umiseq]=ctab_umi[fseqc][umiseq]+1
         # nmappedcount+=1
         break
       # end for l
@@ -211,12 +336,12 @@ def mageckcount_search_trim_and_sglen(args,fseq0,genedict,ctab,candidate_trim5,l
           ctab[fseqc]=0
         ctab[fseqc]=ctab[fseqc]+1
     
-  return findrecord
+  return (findrecord, matched_seq)
 
 
 
 
-def mageckcount_processonefile(filename,args,ctab,genedict,datastat,pairedfile, adjust):
+def mageckcount_processonefile(filename,args,ctab,ctab_umi,genedict,datastat,pairedfile, adjust):
   '''
   Go through one fastq file
   Parameters
@@ -226,7 +351,9 @@ def mageckcount_processonefile(filename,args,ctab,genedict,datastat,pairedfile, 
   args
     Arguments
   ctab
-    A dictionary of sgRNA sequence and count
+    A {sequence:count} dictionary
+  ctab_umi
+    A {sequence:{umi:count}} dictionary
   genedict
     {sequence:(sgRNA_id,gene_id)} dictionary
   datastat
@@ -248,17 +375,40 @@ def mageckcount_processonefile(filename,args,ctab,genedict,datastat,pairedfile, 
   nmappedcount=0
   # checking possible trimming lengths
   candidate_trim5=[0]
+  remainingseq_list=[]
   candidate_trim5_paired=[0]
-  if args.trim_5.upper() == 'AUTO' or args.trim_5.upper() == 'AUTOTEST':
-    candidate_trim5=mageckcount_trim5_auto(filename,args,genedict)
-    if pairedfile != None:
-      candidate_trim5_paired = mageckcount_trim5_auto(pairedfile, args, genedict, revcomp=True)
+  remainingseq_list_pair=[]
+  (candidate_trim5,remainingseq_list)=mageckcount_trim5_auto(filename,args,genedict)
+  # parameters for UMI search
+
+  #ctab_umi={} # a {guide:{UMI:count}} dictionary structure
+  if args.umi != 'none':
+      if args.umi=='auto':
+        # automatically search for UMIs
+        (umi_start,umi_end)=mageckcount_search_variable_region(remainingseq_list)
+        if umi_start >= 0 and umi_end >= 0:
+          logging.info('UMI found in the first read. Position (after guide): '+str(umi_start)+'-'+str(umi_end))
+          args.umi_start=umi_start
+          args.umi_end=umi_end
+          args.umi='firstpair'
+        else:
+          if pairedfile != None:
+            logging.info('Search for UMI in the second read...')
+            (candidate_trim5_paired, remainingseq_list_pair) = mageckcount_trim5_auto(pairedfile, args, genedict, revcomp=True,is_second_pair=True, no_search=True)
+            (umi_start_2,umi_end_2)=mageckcount_search_variable_region(remainingseq_list_pair)
+            if umi_start_2 >= 0 or umi_end_2 >= 0:
+              logging.info('UMI found in the second read. Position: '+str(umi_start_2)+'-'+str(umi_end_2))
+              args.umi_start_2=umi_start_2
+              args.umi_end_2=umi_end_2
+              args.umi='secondpair'
+            else:
+              logging.error('Cannot fild UMI in the second read...')
+          else:
+            logging.error('Cannot fild UMI in the first read.')
   else:
-    try:
-      candidate_trim5=[int(x) for x in args.trim_5.split(',')]
-      logging.info('Specified trimming length:'+','.join([str(x) for x in candidate_trim5]))
-    except ValueError:
-      logging.error('Integer values must be specified in --trim-5 option')
+    if pairedfile != None:
+      (candidate_trim5_paired, remainingseq_list_pair) = mageckcount_trim5_auto(pairedfile, args, genedict, revcomp=True,is_second_pair=True)
+
   # do not allow multiple trim_5 options without library file
   if len(candidate_trim5)>1 and len(genedict)==0:
     logging.error('A library file has to be provided if multiple trimming lengths are specified in --trim-5 option.')
@@ -304,88 +454,28 @@ def mageckcount_processonefile(filename,args,ctab,genedict,datastat,pairedfile, 
     #if args.trim_5 >0:
     #  fseq=fseq0[args.trim_5:]
     # search the firstpair
-    firstpair_found=mageckcount_search_trim_and_sglen(args,fseq0,genedict,ctab,candidate_trim5,lengthpoolkeys)
+    (firstpair_found, matched_seq)=mageckcount_search_trim_and_sglen(args,fseq0,genedict,ctab,ctab_umi,candidate_trim5,lengthpoolkeys)
     if firstpair_found == True:
       nmappedcount+=1
-    elif adjust==True and pairedfile != None:
-      # if not found in the first pair, search the second pair
-      secondpair_found=mageckcount_search_trim_and_sglen(args,fseq1,genedict,ctab,candidate_trim5_paired,lengthpoolkeys,revcomp=True)
-      if secondpair_found == True:
-        nmappedcount+=1
-    ## old code
-    ## for triml in candidate_trim5:
-    ##   if pairedfile == None:
-    ##     candidate_trim5_paired = [triml]
-    ##   for trim2 in candidate_trim5_paired:
-    ##     # check length
-    ##     fseq=fseq0[triml:]
-    ##     fseqr = fseq1[trim2:]
-    ##     # for l in lengthpool.keys():
-    ##     if len(genedict)==0:
-    ##       if len(fseq)<args.sgrna_len:
-    ##         if (not adjust) or (len(fseqr)<args.sgrna_len):
-    ##           continue
-    ##         fseq = mageckcount_revcomp(fseqr[:args.sgrna_len])
-    ##       fseq=fseq[:args.sgrna_len]
-    ##       if pairedfile != None:
-    ##         fseqr = mageckcount_revcomp(fseqr[:args.sgrna_len])
-    ##       else:
-    ##         fseqr = fseq
-    ##       if (fseq.count('N')>0 or fseqr.count('N')>0) and args.count_n==False:
-    ##         continue
-    ##       if (not adjust) and (fseq!=fseqr):
-    ##         continue
-    ##       if fseq not in ctab:
-    ##         ctab[fseq]=0
-    ##       ctab[fseq]=ctab[fseq]+1
-    ##     else:
-    ##       findrecord=False
-    ##       for l in lengthpoolkeys: # iterate all possible lengths
-    ##         testl=l
-    ##         if len(fseq) < testl:
-    ##           if (not adjust) or (len(fseqr) < testl):
-    ##             continue
-    ##           fseq=mageckcount_revcomp(fseqr[:testl])
-    ##         fseqc = fseq[:testl]
-    ##         # Only use single end fastq file
-    ##         if pairedfile != None:
-    ##           fseqd = mageckcount_revcomp(fseqr[:testl])
-    ##         else:
-    ##           fseqd = fseqc
-    ##         if (fseqc.count('N')>0 or fseqd.count('N')>0) and args.count_n == False :
-    ##           continue
-    ##         if fseqc not in genedict:
-    ##           if not adjust:
-    ##             continue
-    ##           if fseqd in genedict:
-    ##             fseqc = fseqd
-    ##         if (not adjust) and (fseqc != fseqd):
-    ##           continue
-    ##         # Count the number of sgRNA
-    ##         if fseqc not in ctab:
-    ##           ctab[fseqc]=0
-    ##         ctab[fseqc]=ctab[fseqc]+1
-    ##         findrecord=True
-    ##         nmappedcount+=1
-    ##         break
-    ##       # end for l
-    ##       if findrecord:
-    ##         break
-    ##   if findrecord:
-    ##     break
-    ## # save unmapped file
-    ## if args.unmapped_to_file and findrecord==False:
-    ##   if len(fseq)<args.sgrna_len:
-    ##     continue
-    ##   fseqc=fseq[:args.sgrna_len]
-    ##   # fseqd=mageckcount_revcomp(fseqr[:args.sgrna_len])
-    ##   if fseqc.count('N') > 0 and args.count_n == False :
-    ##     continue
-    ##   if fseqc not in ctab:
-    ##     ctab[fseqc]=0
-    ##   ctab[fseqc]=ctab[fseqc]+1
-    ##   # break
-    ## # end if
+    if args.umi!='none':
+      # now search for UMIs on the second pair
+      if args.umi=='secondpair':
+        # extract UMIs from the second pair
+        if args.umi_start_2 == -1 or args.umi_end_2 == -1:
+          logging.error('Error: umi-start and umi-end has to be greater than zero')
+        umiseq = fseq1[args.umi_start_2:args.umi_end_2]
+        if matched_seq not in ctab_umi:
+          ctab_umi[matched_seq]={}
+        if umiseq not in ctab_umi[fseqc]:
+          ctab_umi[matched_seq][umiseq]=0
+        ctab_umi[matched_seq][umiseq]=ctab_umi[matched_seq][umiseq]+1
+    else:
+      if firstpair_found == False  and adjust==True and pairedfile != None:
+        # if not found in the first pair, search the second pair
+        (secondpair_found,matched_seq)=mageckcount_search_trim_and_sglen(args,fseq1,genedict,ctab,ctab_umi,candidate_trim5_paired,lengthpoolkeys,revcomp=True)
+        if secondpair_found == True:
+          nmappedcount+=1
+
   # 
   logging.info('Total: '+str((nreadcount))+ '.')
   logging.info('Mapped: '+str((nmappedcount))+ '.')
