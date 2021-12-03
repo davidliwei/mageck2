@@ -310,7 +310,7 @@ def mageckcount_printumidict(dict0,args,ofile,ounmappedfile,sgdict,datastat,sep=
         continue
       sx=sgdict[k]
       for (umi,v) in umidict.items():
-        print(sep.join( [sx[0]+'_'+umi,sx[1]] + [str(x) for x in v]),file=ofile)
+        print(sep.join( [sx[0]+'_'+umi,sx[0]] + [str(x) for x in v]),file=ofile)
 
 
 
