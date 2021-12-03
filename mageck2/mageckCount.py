@@ -261,14 +261,14 @@ def mageckcount_getsamplelabel(args,datastat):
     for (label,dsitem) in datastat.items():
       slabel[dsitem['sampleindex']]=label
     #slabel=datastat.keys()
-  return slabel
+  return (slabel,nsample)
 
 def mageckcount_printdict(dict0,args,ofile,ounmappedfile,sgdict,datastat,sep='\t'):
   '''
   Write the table count to file
   '''
 
-  slabel=mageckcount_getsamplelabel(args,datastat)
+  (slabel,nsample)=mageckcount_getsamplelabel(args,datastat)
   # print header
   print('sgRNA'+sep+'Gene'+sep+sep.join(slabel),file=ofile)
   # print items
@@ -293,7 +293,7 @@ def mageckcount_printumidict(dict0,args,ofile,ounmappedfile,sgdict,datastat,sep=
   Write the table count to file
   '''
 
-  slabel=mageckcount_getsamplelabel(args,datastat)
+  (slabel,nsample)=mageckcount_getsamplelabel(args,datastat)
   # print header
   print('sgRNA_umi'+sep+'Gene'+sep+sep.join(slabel),file=ofile)
   # print items
@@ -311,11 +311,6 @@ def mageckcount_printumidict(dict0,args,ofile,ounmappedfile,sgdict,datastat,sep=
       sx=sgdict[k]
       for (umi,v) in umidict.items():
         print(sep.join( [sx[0]+'_'+umi,sx[1]] + [str(x) for x in v]),file=ofile)
-    # print the remaining counts, fill with 0
-    for (k,v) in sgdict.items():
-      if k not in dict0:
-        for (umi,v) in umidict.items():
-          print(sep.join([v[0],v[1]]+["0"]*nsample),file=ofile)
 
 
 
@@ -469,7 +464,7 @@ def mageckcount_processfastq(args,genedict,sgdict):
       # squash technical counts
       mageckcount_squashdict(dict0,dict00)
       if args.umi != 'none':
-        mageckcount_squashdict(dict0_umi,dict00_umi)
+        mageckcount_squashdict(dict0_umi,dict00_umi,isdict=True)
       j=j+1
     i=i+1
     mageckcount_mergedict(alldict,dict0)

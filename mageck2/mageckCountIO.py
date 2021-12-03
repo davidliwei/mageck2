@@ -51,12 +51,17 @@ def mageckcount_search_variable_region(seqlist):
         count_freq[i][3]+=1
   var_start=-1
   var_end=-1
+  #print(count_freq)
+  logging.info('--count-freq data for UMI search (A/T/G/C):')
+  for x in range(max(count_freq.keys())):
+    logging.info('  '+str(x)+'\t'+'/'.join([str(s) for s in count_freq[x]]))
+  
   # search for start
   for x in range(max(count_freq.keys())):
     freq_vec=count_freq[x]
     freq_t_sum=max(sum(freq_vec),1)
     freq_f=[y/freq_t_sum for y in freq_vec]
-    if max(freq_f)>0 and max(freq_f)<0.9:
+    if freq_t_sum*1.0/len(seqlist) > 0.9 and max(freq_f)>0 and max(freq_f)<0.9:
       var_start=x
       break
   if var_start>=0:
@@ -466,7 +471,7 @@ def mageckcount_processonefile(filename,args,ctab,ctab_umi,genedict,datastat,pai
         umiseq = fseq1[args.umi_start_2:args.umi_end_2]
         if matched_seq not in ctab_umi:
           ctab_umi[matched_seq]={}
-        if umiseq not in ctab_umi[fseqc]:
+        if umiseq not in ctab_umi[matched_seq]:
           ctab_umi[matched_seq][umiseq]=0
         ctab_umi[matched_seq][umiseq]=ctab_umi[matched_seq][umiseq]+1
     else:

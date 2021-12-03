@@ -3,9 +3,10 @@
 
 MAGeCK2 is a new computational tool, built upon MAGeCK, for CRISPR screening analysis.
 
-Compared with MAGeCK, MAGeCK2 highlights the following functionalities:
+Compared with MAGeCK, MAGeCK2 highlights the following additional functionalities:
 
 * Paired sample analysis
+* Processing and analyzing screens with UMIs
 
 More functions to be added.
 
@@ -27,4 +28,5 @@ The older version of MAGeCK can be accessed via [sourceforge](https://sourceforg
 
 ### 2020.12.01 Version 0.1
 
+* Add UMI support in count command
 * The source code released.
