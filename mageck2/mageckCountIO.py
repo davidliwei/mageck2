@@ -386,6 +386,7 @@ def mageckcount_processonefile(filename,args,ctab,ctab_umi,genedict,datastat,pai
   (candidate_trim5,remainingseq_list)=mageckcount_trim5_auto(filename,args,genedict)
   # parameters for UMI search
 
+  revised_umi_auto=False # a marker to retore args.umi later
   #ctab_umi={} # a {guide:{UMI:count}} dictionary structure
   if args.umi != 'none':
       if args.umi=='auto':
@@ -396,6 +397,7 @@ def mageckcount_processonefile(filename,args,ctab,ctab_umi,genedict,datastat,pai
           args.umi_start=umi_start
           args.umi_end=umi_end
           args.umi='firstpair'
+          revised_umi_auto=True# a marker to retore args.umi later
         else:
           if pairedfile != None:
             logging.info('Search for UMI in the second read...')
@@ -406,6 +408,7 @@ def mageckcount_processonefile(filename,args,ctab,ctab_umi,genedict,datastat,pai
               args.umi_start_2=umi_start_2
               args.umi_end_2=umi_end_2
               args.umi='secondpair'
+              revised_umi_auto=True# a marker to retore args.umi later
             else:
               logging.error('Cannot fild UMI in the second read...')
           else:
@@ -516,6 +519,12 @@ def mageckcount_processonefile(filename,args,ctab,ctab_umi,genedict,datastat,pai
     #print('Mapped: '+str((nmappedcount))+ '...')
     #print('Mapped 2: '+str((nmapped))+ '...')
   #return ctab
+  if False and revised_umi_auto:# a marker to retore args.umi the default values later; currently off
+    args.umi='auto'
+    args.umi_start=-1
+    args.umi_end=-1
+    args.umi_start_2=-1
+    args.umi_end_2=-1
   return 0
 
 
