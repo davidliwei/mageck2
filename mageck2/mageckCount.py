@@ -211,7 +211,7 @@ def mageckcount_mergeumidict(dict0,dict1):
       dict0[k]={}
       for umi in umidict1.keys():
         if nsample>0:
-          dict0[k][umi]=[[0]*nsample, umidict1[umi]]
+          dict0[k][umi]=[0]*nsample + [umidict1[umi]]
         else:
           dict0[k][umi]=[umidict1[umi]]
   # return dict0

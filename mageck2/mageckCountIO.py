@@ -61,7 +61,7 @@ def mageckcount_search_variable_region(seqlist):
     freq_vec=count_freq[x]
     freq_t_sum=max(sum(freq_vec),1)
     freq_f=[y/freq_t_sum for y in freq_vec]
-    if freq_t_sum*1.0/len(seqlist) > 0.9 and max(freq_f)>0 and max(freq_f)<0.9:
+    if freq_t_sum*1.0/len(seqlist) > 0.9 and max(freq_f)>0 and max(freq_f)<0.6:
       var_start=x
       break
   if var_start>=0:
@@ -69,7 +69,7 @@ def mageckcount_search_variable_region(seqlist):
       freq_vec=count_freq[x]
       freq_t_sum=max(sum(freq_vec),1)
       freq_f=[y/freq_t_sum for y in freq_vec]
-      if max(freq_f)>0 and max(freq_f)<0.9:
+      if freq_t_sum*1.0/len(seqlist) > 0.9 and max(freq_f)>0 and max(freq_f)<0.6:
         pass
       else:
         var_end=x
