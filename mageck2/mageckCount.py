@@ -53,6 +53,9 @@ def mageckcount_checkargs(args):
   Return value:
     genedict
         The {sgrnaid:(sgrnaseq,geneid)} from library file
+    genedict2
+        The same with genedict, or None if --list-seq-2 is not provided
+
   """
   if hasattr(args,'fastq') and args.fastq :
     if args.list_seq == None:
@@ -71,13 +74,15 @@ def mageckcount_checkargs(args):
       sys.exit(-1)
     args.sample_label=args.sample_label.split(',')
   # read library file
+  genedict={}
   genenames={} # store possible gene names
+  genedict2=None
   if args.list_seq is not None:
-    genedict=mageckcount_checklists(args) # sgid:(seq,gene)
+    genedict=mageckcount_checklists(args.list_seq,args.reverse_complement) # sgid:(seq,gene)
     for (k,v) in genedict.items():
       genenames[v[1].upper()]=0
-  else:
-    genedict={}
+  if args.list_seq_2 is not None:
+    genedict2=mageckcount_checklists(args.list_seq_2,args.reverse_complement_2) # sgid:(seq,gene)
   # check count table
   if args.count_table != None:
     genenames.clear()
@@ -121,7 +126,7 @@ def mageckcount_checkargs(args):
     else:
       logging.warning('Found 0 genes in ' + args.gmt_file + ' that apper in your screening library.')
       # sys.exit(-1)
-  return genedict
+  return (genedict,genedict2)
 
 # two versions of rev comp, depending on different versions of python
 '''
@@ -313,6 +318,37 @@ def mageckcount_printumidict(dict0,args,ofile,ounmappedfile,sgdict,datastat,sep=
         print(sep.join( [sx[0]+'_'+umi,sx[0]] + [str(x) for x in v]),file=ofile)
 
 
+def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datastat,sep='\t'):
+  '''
+  Write the table count to file
+  '''
+
+  (slabel,nsample)=mageckcount_getsamplelabel(args,datastat)
+  # print header
+  print('sgRNA1_sgRNA2'+sep+'Gene1_Gene2'+sep+sep.join(slabel),file=ofile)
+  # print items
+  if len(sgdict)==0:
+    for (k,umidict) in dict0.items():
+      for (umi,v) in umidict.items():
+        print(sep.join([k+'_'+umi,'None']+[str(x) for x in v]),file=ofile)
+  else:
+    for (k,umidict) in dict0.items():
+      # k is the seq of sgRNA1
+      if k not in sgdict: # only print those in the genedict
+        if ounmappedfile != None:
+          for (k2,v) in umidict.items():
+            print(sep.join([k+'_'+k2,k+'_'+k2]+[str(x) for x in v]),file=ounmappedfile)
+        continue
+      sx=sgdict[k]
+      for (k2,v) in umidict.items():
+        if k2 not in sgdict2:
+          if ounmappedfile != None:
+            print(sep.join([k+'_'+k2,sx[0]+'_'+k2]+[str(x) for x in v]),file=ounmappedfile)
+        else:
+          sx2=sgdict2[k2]
+          print(sep.join( [sx[0]+'_'+sx2[0],sx[1]+'_'+sx2[1]] + [str(x) for x in v]),file=ofile)
+
+
 
 def mageck_printdict(dict0,args,sgdict,sampledict,sampleids):
   """Write the normalized read counts to file
@@ -361,12 +397,14 @@ def mageck_printdict(dict0,args,sgdict,sampledict,sampleids):
 
 
 
-def mageckcount_checklists(args):
+def mageckcount_checklists(filename,reversecomplement):
   """
   Read sgRNA library file
   Parameters:
-    args
-        The argparse object
+    filename
+        The name to be opened
+    reversecomplement
+        Whether guides should be reversecomplemented
   Return value:
     genedict
         The {sgRNAid:(seq,geneid)} object
@@ -376,12 +414,12 @@ def mageckcount_checklists(args):
   """
   genedict={}
   hascsv=False
-  if args.list_seq.upper().endswith('CSV'):
+  if filename.upper().endswith('CSV'):
     hascsv=True
   n=0
   seqdict={}
   ndup=0
-  for line in open(args.list_seq):
+  for line in open(filename):
     if hascsv:
       field=line.strip().split(',')
     else:
@@ -399,7 +437,7 @@ def mageckcount_checklists(args):
       if re.search('[^ATCG]',sgrnaseq) is not None:
         logging.info('Header line of the library file detected; skip the first line ...')
         continue
-    if hasattr(args,'reverse_complement') and args.reverse_complement:
+    if  reversecomplement:
       sgrnaseq=mageckcount_revcomp(sgrnaseq)
     if sgrnaseq in seqdict:
       # logging.warning('Duplicated sgRNA sequence '+field[1]+' in line '+str(n)+'. Skip this record.')
@@ -411,7 +449,7 @@ def mageckcount_checklists(args):
   logging.warning('There are '+str(ndup)+' sgRNAs with duplicated sequences.')
   return genedict
 
-def mageckcount_processfastq(args,genedict,sgdict):
+def mageckcount_processfastq(args,genedict,sgdict,sgdict2=None):
   """
   Main entry for fastq processing
   """
@@ -443,6 +481,10 @@ def mageckcount_processfastq(args,genedict,sgdict):
   if paired and args.count_pair.upper() == 'TRUE':
     adjust = False
   i=0
+  # for paired-guide mode: will invoke umi search functions here
+  if args.pairguide != 'none':
+    args.umi=args.pairguide
+    args.umi_start=args.pg_start; args.umi_end=args.pg_end; args.umi_start_2=args.pg_start_2; args.umi_end_2=args.pg_end_2
   # go through the fastq files
   for filenamelist in listfq:
     dict0={}
@@ -484,6 +526,14 @@ def mageckcount_processfastq(args,genedict,sgdict):
   if hasattr(args,'unmapped_to_file') and args.unmapped_to_file:
     ounmappedfilel.close()
 
+  # write paired-guide counts
+  if args.pairguide != 'none':
+    # filter umis; only keep umis that are within the library
+    ofilel=open(args.output_prefix+'.pg_count.txt','w')
+    mageckcount_printpgdict(alldict_umi,args,ofilel,None,sgdict,sgdict2,datastat)
+    ofilel.close()
+    # restore umi parameters
+    args.umi='none'
   # write umi counts
   if args.umi != 'none':
     ofilel=open(args.output_prefix+'.umi_count.txt','w')
@@ -680,12 +730,17 @@ def mageckcount_main(args):
   Main entry for mageck count module
   """
   # check arguments
-  genedict=mageckcount_checkargs(args) # return: {sgrnaid:(seq,geneid)} 
+  (genedict,genedict2)=mageckcount_checkargs(args) # return: {sgrnaid:(seq,geneid)} 
   # save sgRNA ID and gene name
   sgdict={} #
   for (k,v) in genedict.items():
     sgdict[v[0]]=(k,v[1]) # {seq:(sgid,gene)
   sgrna2genelist={k:v[1] for (k,v) in genedict.items()}
+  sgdict2=None
+  if genedict2 != None:
+    sgdict2={}
+    for (k,v) in genedict2.items():
+      sgdict2[v[0]]=(k,v[1]) # {seq:(sgid,gene)
   if hasattr(args,'count_table') and args.count_table != None:
     # treat it as a count table
     (allmappeddict,datastat,mapptab)=mageckcount_processcounttable(args,genedict,sgdict)
@@ -695,7 +750,7 @@ def mageckcount_main(args):
     sgrna2genelist=mapptab
   else:
     # check the listed files: fastq/sam/bam files provided
-    (allmappeddict,datastat)=mageckcount_processfastq(args,genedict,sgdict)
+    (allmappeddict,datastat)=mageckcount_processfastq(args,genedict,sgdict,sgdict2=sgdict2)
     # note that the key of allmappeddict is sgRNA sequence
   
   # normalize read counts

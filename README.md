@@ -1,5 +1,5 @@
 
-# MAGeCK2: Next generation CRISPR screening analysis tool 
+# MAGeCK2: Model-based Analysis of CRISPR screens
 
 MAGeCK2 is a new computational tool, built upon MAGeCK, for CRISPR screening analysis.
 
@@ -7,12 +7,15 @@ Compared with MAGeCK, MAGeCK2 highlights the following additional functionalitie
 
 * Paired sample analysis
 * Processing and analyzing screens with UMIs
+* Processing and analyzing paired-guide screens
 
 More functions to be added.
 
-## Getting MAGeCK2 
+# Installation
 
-## Demo
+# Documentation
+
+# Demo
 
 You can run the demo datasets of MAGeCK2 from GitHub [mageck2-demo](https://github.com/davidliwei/mageck2-demo) repository.
 
@@ -24,9 +27,10 @@ The older version of MAGeCK can be accessed via [sourceforge](https://sourceforg
 
 
 
-## Version history
+# Version history
 
-### 2020.12.01 Version 0.1
+## 2020.12.01 Version 0.1
 
+* Add paired-guide support in count command
 * Add UMI support in count command
 * The source code released.
