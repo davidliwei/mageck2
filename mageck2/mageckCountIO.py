@@ -410,9 +410,11 @@ def mageckcount_processonefile(filename,args,ctab,ctab_umi,genedict,datastat,pai
               args.umi='secondpair'
               revised_umi_auto=True# a marker to retore args.umi later
             else:
-              logging.error('Cannot fild UMI in the second read...')
+              logging.error('Search failed for UMI in the second read.')
+              sys.exit(-1)
           else:
-            logging.error('Cannot fild UMI in the first read.')
+            logging.error('Search failed for UMI in the first read.')
+            sys.exit(-1)
   else:
     if pairedfile != None:
       (candidate_trim5_paired, remainingseq_list_pair) = mageckcount_trim5_auto(pairedfile, args, genedict, revcomp=True,is_second_pair=True)
