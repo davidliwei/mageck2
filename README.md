@@ -11,19 +11,25 @@ Compared with MAGeCK, MAGeCK2 highlights the following additional functionalitie
 
 More functions to be added.
 
-# Installation
 
 # Documentation
 
+For instructions on installation, usage and running examples, see [mageck2-doc](https://github.com/davidliwei/mageck2-doc).
+
 # Demo
 
-You can run the demo datasets of MAGeCK2 from GitHub [mageck2-demo](https://github.com/davidliwei/mageck2-demo) repository.
+You can run the example datasets of MAGeCK2 from GitHub [mageck2-demo](https://github.com/davidliwei/mageck2-demo) repository.
 
-## MAGeCK
+# MAGeCK
 
 The older version of MAGeCK can be accessed via [sourceforge](https://sourceforge.net/projects/mageck/) or [bitbucket](https://bitbucket.org/liulab/mageck/src/master/).
 
+# Questions
 
+Questions? Bug? Recommendations? Here are a few ways:
+
+* Join our [Google group](https://groups.google.com/g/mageck?hl=en); 
+* Create an [issue](https://github.com/davidliwei/mageck2/issues) in the github repository. Issues from demo or documentations will need to posted to [mageck2-demo](https://github.com/davidliwei/mageck2-demo) or [mageck2-doc](https://github.com/davidliwei/mageck2-doc), respectively.
 
 
 
