@@ -70,11 +70,13 @@ def arg_count(subparser):
   cnt_pggroup=subp_count.add_argument_group(title='Optional arguments for counting paired-guide screens',description='')
   cnt_pggroup.add_argument('--pairguide',choices=['none','firstpair','secondpair','auto'],default='none',help='Search for second gRNA, located within the first pair or the second pair of the read, or automatically search for possible guides. If you are aware of the location of the guide, specify the values of --pg-start/--pg-end (if --pairguide firstpair), or --pg-start-2/--pg-end-2 (if --pairguide secondpair). The program will automatically search for locations if --pairguide auto.')
   cnt_pggroup.add_argument('--list-seq-2',required=False,help='A library file for the second sgRNA, containing the list of sgRNA names, their sequences and associated genes. Support file format: csv and txt. ')
-  cnt_fqgroup.add_argument('--reverse-complement-2',action='store_true',help='Reverse complement the sequences in the second pair guide library for read mapping. Note: for performance considerations, only the guide sequences are reverse complemented, not the read.')
-  cnt_umigroup.add_argument('--pg-start',type=int,default=-1,help='The relative start position of UMI from guides, if UMI is found on the first pair. For example, for a read NNNNAATACGNNNCGACNNNN with guide AATACG and UMI CGAC, set --umi-start to 4 and --umi-end to 8.')
-  cnt_umigroup.add_argument('--pg-end',type=int,default=-1,help='The relative end position of UMI from guides, if UMI is found on the first pair.')
-  cnt_umigroup.add_argument('--pg-start-2',type=int,default=-1,help='The relative start position of UMI (from the first nucleotide of the read), if UMI is found on the second pair. For example, for a read NNNNCGAC with UMI CGAC, set --umi-start-2 to 4 and --umi-end-2 to 8.')
-  cnt_umigroup.add_argument('--pg-end-2',type=int,default=-1,help='The relative end position of UMI (from the first nucleotide of the read), if UMI is found on the second pair.')
+  cnt_pggroup.add_argument('--reverse-complement-2',action='store_true',help='Reverse complement the sequences in the second pair guide library for read mapping. Note: for performance considerations, only the guide sequences are reverse complemented, not the read.')
+  cnt_pggroup.add_argument('--pg-start',type=int,default=-1,help='The relative start position of UMI from guides, if UMI is found on the first pair. For example, for a read NNNNAATACGNNNCGACNNNN with guide AATACG and UMI CGAC, set --umi-start to 4 and --umi-end to 8.')
+  cnt_pggroup.add_argument('--pg-end',type=int,default=-1,help='The relative end position of UMI from guides, if UMI is found on the first pair.')
+  cnt_pggroup.add_argument('--pg-start-2',type=int,default=-1,help='The relative start position of UMI (from the first nucleotide of the read), if UMI is found on the second pair. For example, for a read NNNNCGAC with UMI CGAC, set --umi-start-2 to 4 and --umi-end-2 to 8.')
+  cnt_pggroup.add_argument('--pg-end-2',type=int,default=-1,help='The relative end position of UMI (from the first nucleotide of the read), if UMI is found on the second pair.')
+  cnt_pggroup.add_argument('--pg-min-read',type=int,default=3,help='Only report paired-guides whose total reads in all samples no less than this number. Setting to higher numbers to avoid reporting a large number of records with very few reads. Default 2.')
+  cnt_pggroup.add_argument('--pg-pair-only',help='Only report paired-guides whose combination is listed in the file designated by --pg-pair-only. Each line in this file should has the format "sgid_1 sgid_2", where sgid_1 and sgid_2 are sgRNA IDs from --list-seq and --list-seq-2, respectively.')
   
 def arg_test(subparser):
   """

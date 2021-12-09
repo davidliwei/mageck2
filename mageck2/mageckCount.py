@@ -23,26 +23,6 @@ from mageck2.mageckCountQC import *
 
 
 
-def mageckcount_parseargs():
-  """
-  Parse arguments. Only used when mageckCount.py is executed directly.
-  """
-  parser=argparse.ArgumentParser(description='Collecting read counts for multiple samples.')
-  
-  parser.add_argument('-l','--list-seq',required=True,help='A file containing the list of sgRNA names, their sequences and associated genes. Support file format: csv and txt.')
-  parser.add_argument('--sample-label',default='',help='Sample labels, separated by comma (,). Must be equal to the number of samples provided. Default "sample1,sample2,...".')
-  parser.add_argument('-n','--output-prefix',default='sample1',help='The prefix of the output file(s). Default sample1.')
-  parser.add_argument('--trim-5',type=int,default=0,help='Length of trimming the 5\' of the reads. Default 0')
-  parser.add_argument('--sgrna-len',type=int,default=20,help='Length of the sgRNA. Default 20')
-  parser.add_argument('--count-n',action='store_true',help='Count sgRNAs with Ns. By default, sgRNAs containing N will be discarded.')
-  parser.add_argument('--fastq',nargs='+',help='Sample fastq files, separated by space; use comma (,) to indicate technical replicates of the same sample. For example, "--fastq sample1_replicate1.fastq,sample1_replicate2.fastq sample2_replicate1.fastq,sample2_replicate2.fastq" indicates two samples with 2 technical replicates for each sample.')
-  parser.add_argument('--fastq-2', nargs='+',
-                           help='Paired sample fastq files (or fastq.gz files), the order of which should be consistent with that in fastq option.')
-  
-  args=parser.parse_args()
-  
-  
-  return args
 
 def mageckcount_checkargs(args):
   """
@@ -83,6 +63,20 @@ def mageckcount_checkargs(args):
       genenames[v[1].upper()]=0
   if args.list_seq_2 is not None:
     genedict2=mageckcount_checklists(args.list_seq_2,args.reverse_complement_2) # sgid:(seq,gene)
+    # check pg-pair-only file
+    if args.pg_pair_only != None:
+      nl=0
+      for lines in open(args.pg_pair_only):
+        nl+=1
+        field=lines.strip().split()
+        if len(field)<2:
+          logging.error('Warning in line '+str(nl)+' of '+args.pg_pair_only+': two sgRNA ids are expected. Skipping this line.')
+          continue
+        if field[0] not in genedict:
+          logging.warning('Warning in the line '+str(nl)+' of '+args.pg_pair_only+': sgRNA ID '+field[0]+' not in the first library.')
+        if field[1] not in genedict2:
+          logging.warning('Warning in the line '+str(nl)+' of '+args.pg_pair_only+': sgRNA ID '+field[1]+' not in the second library.')
+
   # check count table
   if args.count_table != None:
     genenames.clear()
@@ -324,6 +318,22 @@ def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datast
   '''
 
   (slabel,nsample)=mageckcount_getsamplelabel(args,datastat)
+  # read paired-guide sgRNA ID list, if possible
+  pg_dict=None
+  if args.pg_pair_only != None:
+    pg_dict={}
+    nl=0
+    for lines in open(args.pg_pair_only):
+      nl+=1
+      field=lines.strip().split()
+      if len(field)<2:
+        continue
+      sg_1=field[0]; sg_2=field[1]
+      if sg_1 not in pg_dict:
+        pg_dict[sg_1]={}
+      if sg_2 not in pg_dict[sg_1]:
+        pg_dict[sg_1][sg_2]=0
+    logging.info(str(nl)+' records in '+args.pg_pair_only+' loaded.')
   # print header
   print('sgRNA1_sgRNA2'+sep+'Gene1_Gene2'+sep+sep.join(slabel),file=ofile)
   # print items
@@ -346,7 +356,16 @@ def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datast
             print(sep.join([k+'_'+k2,sx[0]+'_'+k2]+[str(x) for x in v]),file=ounmappedfile)
         else:
           sx2=sgdict2[k2]
-          print(sep.join( [sx[0]+'_'+sx2[0],sx[1]+'_'+sx2[1]] + [str(x) for x in v]),file=ofile)
+          totalr=sum(v)
+          if totalr>=args.pg_min_read:
+            if pg_dict == None:
+              print(sep.join( [sx[0]+'_'+sx2[0],sx[1]+'_'+sx2[1]] + [str(x) for x in v]),file=ofile)
+            else:
+              if sx[0] in pg_dict and sx2[0] in pg_dict[sx[0]]:
+                print(sep.join( [sx[0]+'_'+sx2[0],sx[1]+'_'+sx2[1]] + [str(x) for x in v]),file=ofile)
+              else:
+                if ounmappedfile != None:
+                  print(sep.join( [sx[0]+'_'+sx2[0],sx[1]+'_'+sx2[1]] + [str(x) for x in v]),file=ounmappedfile)
 
 
 
