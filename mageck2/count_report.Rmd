@@ -68,8 +68,9 @@ nc_table=read.table(normalized_cnt_file,header = T,as.is = T)
 # function definition
 
 library(knitr)
-
+library(tidyr)
 library(pheatmap)
+library(ggplot2)
 
 
 colors=c( "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",  "#A65628", "#F781BF",
@@ -140,9 +141,12 @@ genhistplot<-function(filename,isfile=T,...){
 
 
 
-genclustering<-function(filename,...){
-  #slmed=read.table(filename,header=T)
-  slmed=read.table(filename,header=T)
+genclustering<-function(filename,isfile=T,...){
+  if(isfile){
+    slmed=read.table(filename,header=T)
+  }else{
+    slmed=filename;
+  }
   slmat=as.matrix(slmed[,c(-1,-2)])
   slmat_log=log2(slmat+1)
 
