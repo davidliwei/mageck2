@@ -1,6 +1,7 @@
-# define the C compiler to use
-# CC = gcc
-CC = g++
+# define the C++ compiler to use.
+# Default to the portable `c++` driver (resolves to g++ on Linux and clang++
+# on macOS). Override on the command line if needed, e.g. `make CC=g++`.
+CC = c++
 
 # define any compile-time flags
 CFLAGS = -Wall -g -O2
