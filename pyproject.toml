@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mageck2"
+dynamic = ["version"]
+description = "MAGeCK2: Model-based Analysis of Genome-wide CRISPR-Cas9 Knockout screens"
+readme = "README.md"
+requires-python = ">=3.7"
+license = { text = "BSD-3-Clause" }
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "matplotlib",
+    "statsmodels",
+]
+authors = [{ name = "Wei Li", email = "li.david.wei@gmail.com" }]
+keywords = ["CRISPR", "CRISPR screen", "functional genomics", "bioinformatics", "MAGeCK"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+
+[project.urls]
+Homepage = "https://github.com/davidliwei/mageck2"
+Documentation = "https://github.com/davidliwei/mageck2-doc"
+Issues = "https://github.com/davidliwei/mageck2/issues"
+
+[tool.setuptools]
+packages = ["mageck2"]
+
+[tool.setuptools.dynamic]
+version = { attr = "mageck2.version.__version__" }
+
+[tool.setuptools.package-data]
+mageck2 = ["*.Rnw", "*.RTemplate", "*.gmt", "*.txt", "*.Rmd"]
