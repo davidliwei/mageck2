@@ -28,6 +28,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 
+[project.optional-dependencies]
+test = ["pytest"]
+
 [project.urls]
 Homepage = "https://github.com/davidliwei/mageck2"
 Documentation = "https://github.com/davidliwei/mageck2-doc"

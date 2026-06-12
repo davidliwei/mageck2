@@ -7,6 +7,7 @@ __pycache__/
 .eggs/
 build/
 dist/
+.pytest_cache/
 
 # Compiled RRA artifacts
 rra/src/*.o
