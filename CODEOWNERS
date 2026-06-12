@@ -1,0 +1,8 @@
+# MAGeCK2 code owners
+# Code owners are automatically requested for review on pull requests that
+# touch the paths they own. See https://docs.github.com/articles/about-code-owners
+#
+# Maintainers are listed in MAINTAINERS.md.
+
+# Default owner for everything in the repository.
+*       @davidliwei
