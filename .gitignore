@@ -12,3 +12,6 @@ dist/
 # Compiled RRA artifacts
 rra/src/*.o
 rra/bin/RRA
+
+# Editor / ctags artifacts
+tags
