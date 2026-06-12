@@ -133,7 +133,7 @@ def mageckcount_trim5_auto(filename,args,genedict, revcomp=False,is_second_pair=
   else:
     try:
       trim_5_provided=[int(x) for x in args.trim_5.split(',')]
-      logging.info('Specified trimming length:'+','.join([str(x) for x in candidate_trim5]))
+      logging.info('Specified trimming length:'+','.join([str(x) for x in trim_5_provided]))
     except ValueError:
       logging.error('Integer values must be specified in --trim-5 option')
 
