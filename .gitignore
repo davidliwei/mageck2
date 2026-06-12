@@ -1,1 +1,13 @@
 push_git.sh
+
+# Python build / cache artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Compiled RRA artifacts
+rra/src/*.o
+rra/bin/RRA
