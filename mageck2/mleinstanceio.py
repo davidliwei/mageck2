@@ -35,7 +35,11 @@ def read_gene_from_file(filename,includesamples=None):
   for line in open(filename):
     nline+=1
     if hascsv==False:
-      field=line.strip().split()
+      # split on tab only, consistent with the rest of mageck2 (see mageckCount.py).
+      # using a generic whitespace split() mis-parses sgRNA/gene names that contain
+      # spaces (e.g. control entries like "Non-Targeting Control"), shifting the count
+      # columns and producing a ragged nb_count matrix downstream.
+      field=line.strip().split('\t')
     else:
       field=line.strip().split(',')
     if nline==1:
@@ -74,8 +78,15 @@ def read_gene_from_file(filename,includesamples=None):
       try:
         nrt=float(field[ni+2])+1 # add 1 pseudocount
         sks.nb_count[i]+=[nrt]
-      except ValueError:
-        print('Error loading line '+str(nline))
+      except (ValueError,IndexError):
+        # fail loudly instead of silently skipping the append, which would leave
+        # nb_count ragged and later crash with an opaque numpy "inhomogeneous shape" error.
+        logging.error('Failed to parse a numeric read count on line '+str(nline)+
+                      ' of '+filename+' (sample column '+str(ni+2)+', value: '+
+                      repr(field[ni+2] if ni+2<len(field) else '<missing>')+
+                      '). Please check that the count table is tab-delimited and that '
+                      'sgRNA/gene names do not contain tabs.')
+        sys.exit(-1)
   # end for loop
   logging.info('Loaded '+str(ngene)+' genes.')
   #
