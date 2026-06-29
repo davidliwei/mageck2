@@ -13,6 +13,7 @@ Compared with MAGeCK, MAGeCK2 highlights the following additional functionalitie
 
 See [ROADMAP.md](ROADMAP.md) for the planned direction of the project.
 
+MAGeCK2 is compatible with the lagacy [MAGeCK](https://sourceforge.net/projects/mageck/). Everything is unchanged -- just need to switch the command from "mageck" to "mageck2".
 
 # Installation
 
