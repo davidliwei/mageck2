@@ -42,6 +42,8 @@ tagged as the next release.
 - `ValueError` / crash in `mle` on count tables containing spaces in sgRNA or
   gene names.
 - Error when generating count reports in the RMD file.
+- CNV correction failure with modern NumPy/Python when reading gene symbols from
+  copy-number tables.
 
 ### Removed
 

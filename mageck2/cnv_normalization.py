@@ -17,8 +17,12 @@ def read_CNVdata(CN_file,cell_list):
     # dictionary of cell line indices from copy number data matrix
     cell_dict = {key:val for (val,key) in enumerate(ndarr.dtype.names)}
     # dictionary of gene symbol indices from copy number data matrix
-    # gene_dict = {key:val for (val,key) in enumerate(ndarr['SYMBOL'])}
-    gene_dict = {str(key.decode('UTF-8')):val for (val,key) in enumerate(ndarr['SYMBOL'])}
+    # NumPy may return SYMBOL values as bytes in older versions or strings in
+    # newer versions.
+    gene_dict = {
+        (key.decode('UTF-8') if isinstance(key, bytes) else str(key)): val
+        for (val, key) in enumerate(ndarr['SYMBOL'])
+    }
 
     # identify matches in list of desired cell lines and cell lines in CN data
     inds = [] 
@@ -32,7 +36,7 @@ def read_CNVdata(CN_file,cell_list):
     # convert ndarray into array with float values (instead of string)
     # NOTE: also adjusting log2(CN) to CN by exponentiating
     arr = np.asarray([list(row) for row in ndarr])[:,inds]
-    arr = arr.astype(np.float)
+    arr = arr.astype(float)
     arr = 2**arr
 
     # dictionary of cell line indices from filtered array of CN data

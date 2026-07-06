@@ -82,3 +82,20 @@ def test_explicit_trim5_does_not_crash(tmp_path):
     candidate_trim5, remaining = mageckcount_trim5_auto(str(fastq), args, genedict)
 
     assert candidate_trim5 == [20]
+
+
+def test_read_cnvdata_accepts_string_symbols(tmp_path):
+    from mageck2.cnv_normalization import read_CNVdata
+
+    cnv_file = tmp_path / "cnv.txt"
+    cnv_file.write_text(
+        "SYMBOL\tHL60\tKBM7\n"
+        "GENE1\t0\t1\n"
+        "GENE2\t2\t3\n"
+    )
+
+    cnv_arr, cell_dict, gene_dict = read_CNVdata(str(cnv_file), ["HL60"])
+
+    assert gene_dict == {"GENE1": 0, "GENE2": 1}
+    assert cell_dict == {"HL60": 0}
+    assert cnv_arr.tolist() == [[1.0], [4.0]]
