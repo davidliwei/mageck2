@@ -10,6 +10,7 @@ process.
 | Maintainer | GitHub | Role |
 |---|---|---|
 | Wei Li | [@davidliwei](https://github.com/davidliwei) | Lead maintainer; original author of MAGeCK |
+| Yangqi Su | [@yangqi-su](https://github.com/yangqi-su) | Maintainer |
 
 ## Becoming a maintainer
 
