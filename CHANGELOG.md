@@ -44,6 +44,7 @@ tagged as the next release.
 - Error when generating count reports in the RMD file.
 - CNV correction failure with modern NumPy/Python when reading gene symbols from
   copy-number tables.
+- False paired-guide warnings when `--pg-pair-only` files include a header row.
 
 ### Removed
 
