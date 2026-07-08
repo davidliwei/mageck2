@@ -44,6 +44,8 @@ tagged as the next release.
 - Error when generating count reports in the RMD file.
 - CNV correction failure with modern NumPy/Python when reading gene symbols from
   copy-number tables.
+- Clear error for the disabled experimental `mle --bayes` option instead of an
+  import crash or silent success.
 
 ### Removed
 
