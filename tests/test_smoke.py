@@ -84,6 +84,72 @@ def test_explicit_trim5_does_not_crash(tmp_path):
     assert candidate_trim5 == [20]
 
 
+def test_pg_pair_only_skips_header(tmp_path, caplog):
+    import logging
+    from types import SimpleNamespace
+
+    from mageck2.mageckCount import mageckcount_checkargs, mageckcount_iter_pg_pair_file
+
+    lib1 = tmp_path / "lib1.txt"
+    lib1.write_text(
+        "sgRNA\tsequence\tgene\n"
+        "sg1\tACGTACGTACGTACGTACGT\tGENE1\n"
+    )
+    lib2 = tmp_path / "lib2.txt"
+    lib2.write_text(
+        "sgRNA\tsequence\tgene\n"
+        "sg2\tTGCATGCATGCATGCATGCA\tGENE2\n"
+    )
+    pair_file = tmp_path / "guide_pair.txt"
+    pair_file.write_text(
+        "guide1_fix\tguide2_fix\n"
+        "sg1\tsg2\n"
+    )
+
+    assert list(mageckcount_iter_pg_pair_file(str(pair_file))) == [
+        (2, ["sg1", "sg2"])
+    ]
+
+    # tab-delimited ids that contain spaces must stay intact (not whitespace-split)
+    spaced_pair = tmp_path / "guide_pair_spaced.txt"
+    spaced_pair.write_text(
+        "guide1_fix\tguide2_fix\n"
+        "Non-Targeting Control 1\tNon-Targeting Control 2\n"
+    )
+    assert list(mageckcount_iter_pg_pair_file(str(spaced_pair))) == [
+        (2, ["Non-Targeting Control 1", "Non-Targeting Control 2"])
+    ]
+
+    # .csv paired-guide files are split on commas, matching the count-table readers
+    csv_pair = tmp_path / "guide_pair.csv"
+    csv_pair.write_text(
+        "guide1_fix,guide2_fix\n"
+        "sg1,sg2\n"
+    )
+    assert list(mageckcount_iter_pg_pair_file(str(csv_pair))) == [
+        (2, ["sg1", "sg2"])
+    ]
+
+    args = SimpleNamespace(
+        fastq=["sample_R1.fastq"],
+        fastq_2=["sample_R2.fastq"],
+        list_seq=str(lib1),
+        list_seq_2=str(lib2),
+        reverse_complement=False,
+        reverse_complement_2=False,
+        sample_label="",
+        pg_pair_only=str(pair_file),
+        count_table=None,
+        day0_label=None,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        mageckcount_checkargs(args)
+
+    assert "guide1_fix" not in caplog.text
+    assert "guide2_fix" not in caplog.text
+
+
 def test_mle_bayes_reports_disabled(tmp_path, caplog):
     import logging
     from types import SimpleNamespace

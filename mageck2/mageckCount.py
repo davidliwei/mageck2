@@ -22,6 +22,34 @@ from mageck2.mageckCountNorm import *
 from mageck2.mageckCountQC import *
 
 
+def mageckcount_is_pg_pair_header(field):
+  if len(field)<2:
+    return False
+  guide1_headers=('guide1','sgid1','sgid_1','sgrna1','sgrna_1')
+  guide2_headers=('guide2','sgid2','sgid_2','sgrna2','sgrna_2')
+  f1=field[0].lower()
+  f2=field[1].lower()
+  return (
+    (f1 in guide1_headers or f1.startswith(('guide1_','guide1-'))) and
+    (f2 in guide2_headers or f2.startswith(('guide2_','guide2-')))
+  )
+
+
+def mageckcount_iter_pg_pair_file(filename):
+  # Match the count-table delimiter convention (getcounttablefromfile /
+  # read_gene_from_file): comma for .csv files, tab otherwise. A generic
+  # whitespace split would mis-parse sgRNA ids containing spaces (see the
+  # PR #8 fix in mleinstanceio.read_gene_from_file).
+  splitter=',' if filename.upper().endswith('.CSV') else '\t'
+  nl=0
+  for lines in open(filename):
+    nl+=1
+    field=lines.strip().split(splitter)
+    if nl==1 and mageckcount_is_pg_pair_header(field):
+      continue
+    yield (nl,field)
+
+
 
 
 def mageckcount_checkargs(args):
@@ -65,10 +93,7 @@ def mageckcount_checkargs(args):
     genedict2=mageckcount_checklists(args.list_seq_2,args.reverse_complement_2) # sgid:(seq,gene)
     # check pg-pair-only file
     if args.pg_pair_only != None:
-      nl=0
-      for lines in open(args.pg_pair_only):
-        nl+=1
-        field=lines.strip().split()
+      for (nl,field) in mageckcount_iter_pg_pair_file(args.pg_pair_only):
         if len(field)<2:
           logging.error('Warning in line '+str(nl)+' of '+args.pg_pair_only+': two sgRNA ids are expected. Skipping this line.')
           continue
@@ -322,18 +347,17 @@ def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datast
   pg_dict=None
   if args.pg_pair_only != None:
     pg_dict={}
-    nl=0
-    for lines in open(args.pg_pair_only):
-      nl+=1
-      field=lines.strip().split()
+    nrecord=0
+    for (nl,field) in mageckcount_iter_pg_pair_file(args.pg_pair_only):
       if len(field)<2:
         continue
+      nrecord+=1
       sg_1=field[0]; sg_2=field[1]
       if sg_1 not in pg_dict:
         pg_dict[sg_1]={}
       if sg_2 not in pg_dict[sg_1]:
         pg_dict[sg_1][sg_2]=0
-    logging.info(str(nl)+' records in '+args.pg_pair_only+' loaded.')
+    logging.info(str(nrecord)+' records in '+args.pg_pair_only+' loaded.')
   # print header
   print('sgRNA1_sgRNA2'+sep+'Gene1_Gene2'+sep+sep.join(slabel),file=ofile)
   # print items
@@ -792,7 +816,6 @@ def mageckcount_main(args):
   # print statistics
   mageckcount_printstat(args,datastat)
   return 0
-
 
 
 
