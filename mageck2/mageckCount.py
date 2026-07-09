@@ -36,10 +36,15 @@ def mageckcount_is_pg_pair_header(field):
 
 
 def mageckcount_iter_pg_pair_file(filename):
+  # Match the count-table delimiter convention (getcounttablefromfile /
+  # read_gene_from_file): comma for .csv files, tab otherwise. A generic
+  # whitespace split would mis-parse sgRNA ids containing spaces (see the
+  # PR #8 fix in mleinstanceio.read_gene_from_file).
+  splitter=',' if filename.upper().endswith('.CSV') else '\t'
   nl=0
   for lines in open(filename):
     nl+=1
-    field=lines.strip().split()
+    field=lines.strip().split(splitter)
     if nl==1 and mageckcount_is_pg_pair_header(field):
       continue
     yield (nl,field)

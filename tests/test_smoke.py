@@ -110,6 +110,26 @@ def test_pg_pair_only_skips_header(tmp_path, caplog):
         (2, ["sg1", "sg2"])
     ]
 
+    # tab-delimited ids that contain spaces must stay intact (not whitespace-split)
+    spaced_pair = tmp_path / "guide_pair_spaced.txt"
+    spaced_pair.write_text(
+        "guide1_fix\tguide2_fix\n"
+        "Non-Targeting Control 1\tNon-Targeting Control 2\n"
+    )
+    assert list(mageckcount_iter_pg_pair_file(str(spaced_pair))) == [
+        (2, ["Non-Targeting Control 1", "Non-Targeting Control 2"])
+    ]
+
+    # .csv paired-guide files are split on commas, matching the count-table readers
+    csv_pair = tmp_path / "guide_pair.csv"
+    csv_pair.write_text(
+        "guide1_fix,guide2_fix\n"
+        "sg1,sg2\n"
+    )
+    assert list(mageckcount_iter_pg_pair_file(str(csv_pair))) == [
+        (2, ["sg1", "sg2"])
+    ]
+
     args = SimpleNamespace(
         fastq=["sample_R1.fastq"],
         fastq_2=["sample_R2.fastq"],

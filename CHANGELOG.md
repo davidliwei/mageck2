@@ -45,6 +45,8 @@ tagged as the next release.
 - CNV correction failure with modern NumPy/Python when reading gene symbols from
   copy-number tables.
 - False paired-guide warnings when `--pg-pair-only` files include a header row.
+  `--pg-pair-only` files are now split on tab (or comma for `.csv`), matching the
+  count-table readers, so sgRNA ids containing spaces are no longer mis-parsed.
 
 ### Removed
 
