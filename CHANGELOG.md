@@ -47,6 +47,8 @@ tagged as the next release.
 - False paired-guide warnings when `--pg-pair-only` files include a header row.
   `--pg-pair-only` files are now split on tab (or comma for `.csv`), matching the
   count-table readers, so sgRNA ids containing spaces are no longer mis-parsed.
+- Clear error for the disabled experimental `mle --bayes` option instead of an
+  import crash or silent success.
 
 ### Removed
 

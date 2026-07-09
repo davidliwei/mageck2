@@ -41,10 +41,8 @@ def mageckmle_main(pvargs=None,parsedargs=None,returndict=False):
   args=mageckmle_postargs(args)
   # Bayes module
   if hasattr(args,'bayes') and args.bayes:
-    from mlemageck_bayes import mageck_bayes_main
-    sys.exit(0) # comment this when you think bayes module is completed
-    mageck_bayes_main(parsedargs=args)
-    sys.exit(0) # 
+    logging.error('The experimental mle --bayes module is currently disabled and not supported in this release.')
+    sys.exit(1)
   # from mleclassdef import *
   # from mledesignmat import *
   # from mleem import *
@@ -240,5 +238,4 @@ if __name__ == '__main__':
   except KeyboardInterrupt:
     sys.stderr.write("User interrupt me! ;-) Bye!\n")
     sys.exit(0)
-
 

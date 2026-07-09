@@ -150,6 +150,32 @@ def test_pg_pair_only_skips_header(tmp_path, caplog):
     assert "guide2_fix" not in caplog.text
 
 
+def test_mle_bayes_reports_disabled(tmp_path, caplog):
+    import logging
+    from types import SimpleNamespace
+
+    from mageck2.mlemageck import mageckmle_main
+
+    args = SimpleNamespace(
+        output_prefix=str(tmp_path / "bayes_check"),
+        design_matrix="1,0;1,1",
+        include_samples="sample1,sample2",
+        beta_labels="baseline,treatment",
+        bayes=True,
+    )
+
+    with caplog.at_level(logging.ERROR):
+        try:
+            mageckmle_main(parsedargs=args)
+        except SystemExit as exc:
+            assert exc.code == 1
+        else:
+            raise AssertionError("mle --bayes should exit with an error")
+
+    assert "mle --bayes" in caplog.text
+    assert "disabled" in caplog.text
+
+
 def test_read_cnvdata_accepts_string_symbols(tmp_path):
     from mageck2.cnv_normalization import read_CNVdata
 
