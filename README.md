@@ -1,6 +1,7 @@
 # MAGeCK2: Model-based Analysis of CRISPR screens
 
 [![CI](https://github.com/davidliwei/mageck2/actions/workflows/ci.yml/badge.svg)](https://github.com/davidliwei/mageck2/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/mageck2.svg)](https://pypi.org/project/mageck2/)
 [![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 
 MAGeCK2 is a new computational tool, built upon MAGeCK, for CRISPR screening analysis.
@@ -18,10 +19,14 @@ MAGeCK2 is compatible with the lagacy [MAGeCK](https://sourceforge.net/projects/
 # Installation
 
 MAGeCK2 requires Python &ge; 3.7 and a C++ compiler (used to build the bundled RRA
-component). The Python dependencies (numpy, scipy, pandas, matplotlib, statsmodels) are
-installed automatically.
+component; g++ on Linux or clang++ on macOS, plus `make`). The Python dependencies
+(numpy, scipy, pandas, matplotlib, statsmodels) are installed automatically.
 
-Install the latest version directly from GitHub:
+Install the latest release from [PyPI](https://pypi.org/project/mageck2/):
+
+    pip install mageck2
+
+To install the latest development version directly from GitHub:
 
     pip install git+https://github.com/davidliwei/mageck2.git
 
@@ -70,11 +75,14 @@ Questions? Bug? Recommendations? Here are a few ways:
 
 # Version history
 
-## 2026 — Packaging modernization
+## 2026 — Version 0.2.0: Packaging modernization
 
+* First release published to [PyPI](https://pypi.org/project/mageck2/): `pip install mageck2`.
 * Migrated packaging to `pyproject.toml`; MAGeCK2 is now pip-installable on Python 3.7+ (including 3.12 and 3.13).
 * Added continuous integration and a smoke-test suite.
 * Added project governance and contribution documentation.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full list of changes.
 
 ## 2020.12.01 Version 0.1
 
