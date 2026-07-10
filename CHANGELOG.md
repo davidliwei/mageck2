@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Modernization of packaging, testing, and project governance. This work will be
-tagged as the next release.
+## [0.2.0] - 2026-07-10
+
+Modernization of packaging, testing, and project governance, and the first
+release published to PyPI (`pip install mageck2`). MAGeCK2 is distributed as a
+source distribution that compiles the bundled RRA C++ helper on install; a C++
+compiler and `make` are required.
 
 ### Added
 
+- Published to PyPI: `pip install mageck2`. Releases are built and uploaded by a
+  GitHub Actions workflow using PyPI Trusted Publishing (OIDC, no stored tokens).
+- `MANIFEST.in` so the source distribution bundles the RRA C++ sources, Makefile,
+  and launch script needed to compile on install.
 - `pyproject.toml` packaging (setuptools backend); MAGeCK2 is now pip-installable
   on Python 3.7+, including 3.12 and 3.13.
 - Continuous integration (GitHub Actions) running the test suite across
@@ -68,5 +76,6 @@ Initial public source release, built on
   control, RRA and MLE essentiality testing with copy-number correction, and
   functional enrichment.
 
-[Unreleased]: https://github.com/davidliwei/mageck2/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/davidliwei/mageck2/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/davidliwei/mageck2/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/davidliwei/mageck2/releases/tag/v0.1.0

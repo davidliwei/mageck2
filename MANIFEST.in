@@ -1,0 +1,24 @@
+# Files bundled into the source distribution (sdist) beyond the Python package
+# itself. MAGeCK2 compiles the bundled RRA C++ helper from source at install
+# time (see setup.py), so the sdist MUST carry the RRA sources, its Makefile,
+# and the mageck2 launch script; otherwise `pip install mageck2` fails at
+# `make` with nothing to compile.
+
+# RRA C++ helper: Makefile, sources, and headers (compiled on install)
+include rra/Makefile
+recursive-include rra/src *.cpp *.h
+recursive-include rra/include *.h
+include rra/bin/.gitkeep
+
+# CLI launch script installed onto PATH
+include bin/mageck2
+
+# Project metadata and docs
+include LICENSE
+include README.md
+include CHANGELOG.md
+include ROADMAP.md
+
+# Test suite and its bundled data (lets the sdist be verified end to end)
+recursive-include tests *.py
+recursive-include tests/data *
