@@ -256,12 +256,22 @@ double getgseascore(vector<double> & gscore, int* ind){
 gs_ret getgseascore_fast(vector<double> & gscore, vector<int> & ind){
   double nf=(double)ind.size();
   int n=gscore.size();
+  // No score is defined for an empty gene set, or for a set that covers the
+  // whole ranked list (n==nf would divide by zero in decvalue below).
+  if(nf<=0.0 || n<=nf){
+    return gs_ret(0.0,0);
+  }
   double sumcrv=0.0;
   for(int i=0;i<ind.size();i++){
       //cout<<i<<":"<<ind[i]<<":"<<GNAME[ind[i]]<<",";
       sumcrv+=gscore[ind[i]];
   }
   //cout<<"\nSum:"<<sumcrv<<endl;
+  // All selected genes have zero score: no signal, and dividing by sumcrv
+  // below would produce NaNs.
+  if(sumcrv==0.0){
+    return gs_ret(0.0,0);
+  }
   double decvalue=-1.0/(n-nf);
   double gsvalue=0;
   double gsmax=-1000000.0;
@@ -291,7 +301,7 @@ gs_ret getgseascore_fast(vector<double> & gscore, vector<int> & ind){
 gs_ret getscoreandp( string pathname, double & pval, CallingArgs & args){
 
   int nsz=GNAME.size();
-  if(PM.count(pathname)<0){
+  if(PM.count(pathname)==0){
     cerr<<"Warning: "<<pathname<<" not found.\n";
   }
   double tgscore=0;
@@ -306,18 +316,33 @@ gs_ret getscoreandp( string pathname, double & pval, CallingArgs & args){
   map<int,int> checkred;
   for(int i =0; i< PM[pathname].size();i++){
     string cgname=PM[pathname][i];
-    int gidx=GNAMEINDEX[cgname];
+    // Look the gene up rather than using operator[]: a pathway gene that is
+    // absent from the rank file must be skipped, not silently inserted with a
+    // default index of 0 (which would map it to the top-ranked gene and skew
+    // the enrichment score).
+    map<string,int>::iterator git=GNAMEINDEX.find(cgname);
+    if(git==GNAMEINDEX.end()){
+      continue;
+    }
+    int gidx=git->second;
     if(checkred.count(gidx)==0){
-      //cout<<cgname<<":"<<GNAMEINDEX[cgname]<<endl;
-      index.push_back(GNAMEINDEX[cgname]);
+      //cout<<cgname<<":"<<gidx<<endl;
+      index.push_back(gidx);
       checkred[gidx]=0;
     }
   }
   sort(index.begin(),index.end());
+  // No pathway gene overlaps the ranked list: there is no enrichment to
+  // compute, and indexing index[gr.gindex] below would read out of bounds.
+  if(index.empty()){
+    gs_ret gr_empty(0.0,0); // p_gsea and pval default to 1.0
+    pval=1.0;
+    return gr_empty;
+  }
   gs_ret gr=getgseascore_fast(GSCORE,index);
   tgscore=gr.gscore;
-  
-  
+
+
   // get the RRA score
   int num=index.size();
   double listn=GSCORE.size();
