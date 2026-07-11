@@ -13,5 +13,9 @@ dist/
 rra/src/*.o
 rra/bin/RRA
 
+# Compiled mageckGSEA artifacts
+gsea/src/*.o
+gsea/bin/mageckGSEA
+
 # Editor / ctags artifacts
 tags

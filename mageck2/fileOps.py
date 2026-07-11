@@ -17,15 +17,33 @@ import logging
 import subprocess
 
   
-def systemcall(command, cmsg=True):
+def systemcall(command, cmsg=True, check=False):
+  """Run a shell command and return its combined stdout/stderr as text.
+
+  When ``check`` is True, a non-zero exit status aborts with a clear error
+  instead of silently returning, so a missing or failing helper binary (e.g.
+  RRA or mageckGSEA) surfaces here rather than as an opaque downstream
+  ``FileNotFoundError`` on an output file the helper never wrote.
+  """
   logging.info('Running command: '+command)
-  t=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=True).communicate()[0].decode("utf-8")
+  proc=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=True)
+  t=proc.communicate()[0].decode("utf-8")
   #tmsg=t.stdout.read()
   if cmsg:
     logging.info('Command message:')
     for t0 in t.split('\n'):
       logging.info('  '+t0)
     logging.info('End command message.')
+  if check and proc.returncode!=0:
+    program=command.strip().split()[0]
+    logging.error('Command failed (exit status '+str(proc.returncode)+'): '+command)
+    for t0 in t.split('\n'):
+      logging.error('  '+t0)
+    if proc.returncode==127:
+      logging.error('The helper program "'+program+'" was not found on PATH. It is '
+                    'compiled and installed together with MAGeCK2; make sure the '
+                    'installation\'s bin directory is on your PATH.')
+    sys.exit('CRITICAL: external command "'+program+'" failed; see the log above for details.')
   return t
 
 

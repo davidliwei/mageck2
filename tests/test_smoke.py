@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 DATA = Path(__file__).parent / "data" / "count_table.txt"
+GMT = Path(__file__).parent / "data" / "pathways.gmt"
 
 
 def test_package_imports():
@@ -23,6 +24,12 @@ def test_package_imports():
 
 def test_rra_binary_on_path():
     assert shutil.which("RRA") is not None, "compiled RRA binary not found on PATH"
+
+
+def test_mageckgsea_binary_on_path():
+    assert (
+        shutil.which("mageckGSEA") is not None
+    ), "compiled mageckGSEA binary not found on PATH"
 
 
 def test_mageck2_cli_runs():
@@ -56,6 +63,79 @@ def test_mageck2_test_end_to_end(tmp_path):
     assert "neg|score" in header
     assert "pos|score" in header
     assert len(lines) > 1, "no genes in gene_summary output"
+
+
+def _run_test_step(tmp_path):
+    """Produce a gene_summary the pathway step can consume."""
+    result = subprocess.run(
+        [
+            "mageck2", "test",
+            "-k", str(DATA),
+            "-t", "HL60.final,KBM7.final",
+            "-c", "HL60.initial,KBM7.initial",
+            "-n", "smoke",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    gene_summary = tmp_path / "smoke.gene_summary.txt"
+    assert gene_summary.exists(), "gene_summary output not produced"
+    return gene_summary
+
+
+def test_pathway_gsea_end_to_end(tmp_path):
+    """`pathway --method gsea` (the default) runs via the mageckGSEA helper.
+
+    Regression test for issue #10: the default GSEA method used to shell out to
+    a mageckGSEA binary that was never built or shipped, so the run crashed on a
+    missing intermediate file. The helper is now compiled and installed with
+    MAGeCK2, so the full default path must produce a pathway summary.
+    """
+    gene_summary = _run_test_step(tmp_path)
+
+    result = subprocess.run(
+        [
+            "mageck2", "pathway",
+            "--gene-ranking", str(gene_summary),
+            "--gmt-file", str(GMT),
+            "-n", "pw",
+            "--method", "gsea",
+            "--permutation", "100",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+    summary = tmp_path / "pw.pathway_summary.txt"
+    assert summary.exists(), "pathway_summary output not produced"
+    lines = summary.read_text().splitlines()
+    assert len(lines) > 1, "no pathways in pathway_summary output"
+    pathways = {line.split("\t")[0] for line in lines[1:]}
+    assert {"PATHWAY_A", "PATHWAY_B", "PATHWAY_C"} <= pathways
+
+
+def test_pathway_rra_end_to_end(tmp_path):
+    """`pathway --method rra` runs via the RRA helper and writes a summary."""
+    gene_summary = _run_test_step(tmp_path)
+
+    result = subprocess.run(
+        [
+            "mageck2", "pathway",
+            "--gene-ranking", str(gene_summary),
+            "--gmt-file", str(GMT),
+            "-n", "pw_rra",
+            "--method", "rra",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "pw_rra.pathway_summary.txt").exists()
 
 
 def test_explicit_trim5_does_not_crash(tmp_path):

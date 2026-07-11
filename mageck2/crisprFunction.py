@@ -571,7 +571,7 @@ def rank_association_test(file,outfile,cutoff,args,adjustcutoff=True):
   # command+=" --min-number-goodsgrna 2 "
   if hasattr(args,"additional_rra_parameters") and args.additional_rra_parameters != None:
     command+=" "+args.additional_rra_parameters+" "
-  systemcall(command)
+  systemcall(command,check=True)
 
 
 def magecktest_removetmp(prefix):

@@ -296,7 +296,7 @@ def mageck_pathwaygsa_fast(args):
     gseacommand+=" -r \""+args.gene_ranking+"\" "
     gseacommand+=" -o "+outputfile+" "
     logging.info("GSEA command: "+gseacommand)
-    systemcall(gseacommand)
+    systemcall(gseacommand,check=True)
     # columnid=2; # default: 3rd column (neg. selected p values)
   else:
     rraout_low=args.output_prefix+'.pathway.low.txt'
@@ -311,7 +311,7 @@ def mageck_pathwaygsa_fast(args):
     gseacommand+=" -r \""+args.gene_ranking+"\" "
     gseacommand+=" -o "+rraout_low+" "
     logging.info("GSEA command for negative selection: "+gseacommand)
-    systemcall(gseacommand)
+    systemcall(gseacommand,check=True)
     #
     columnid=args.ranking_column_2; # columnid=6 if sgRNA number in positive selection is not omitted
     gseacommand="mageckGSEA "
@@ -322,7 +322,7 @@ def mageck_pathwaygsa_fast(args):
     gseacommand+=" -r \""+args.gene_ranking+"\" "
     gseacommand+=" -o "+rraout_high+" "
     logging.info("GSEA command for positive selection: "+gseacommand)
-    systemcall(gseacommand)
+    systemcall(gseacommand,check=True)
     
     # merge different files
     merge_gsea_rank_files(rraout_low,rraout_high,args.output_prefix+'.pathway_summary.txt',args)
