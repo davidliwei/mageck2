@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mageckGSEA` guards against divide-by-zero / NaN in the enrichment-score
   computation for degenerate pathways (empty overlap, all-zero scores, or a set
   covering the entire ranked list).
+- `mageckGSEA` no longer reports a degenerate pathway (one covering the entire
+  ranked list, so no enrichment score can be computed) as maximally significant.
+  Previously the permutation test resampled the same full set, found no
+  exceedance of the zero score, and returned `p_permutation=0`; such pathways
+  now short-circuit to a p-value of 1.0 so they cannot distort sorting or FDR.
 
 ## [0.2.0] - 2026-07-10
 

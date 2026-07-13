@@ -34,12 +34,14 @@ struct gs_ret{
   double pval; // p value calculated by permutation
   double fdr; // FDR
   string name;
-  
+  bool degenerate; // true when no score could be computed (empty/degenerate set)
+
   gs_ret(float g, int i): gscore(g), gindex(i){
     p_gsea=1.0;
     pval=1.0;
     fdr=1.0;
     name="";
+    degenerate=false;
   }
 };
 
@@ -259,7 +261,9 @@ gs_ret getgseascore_fast(vector<double> & gscore, vector<int> & ind){
   // No score is defined for an empty gene set, or for a set that covers the
   // whole ranked list (n==nf would divide by zero in decvalue below).
   if(nf<=0.0 || n<=nf){
-    return gs_ret(0.0,0);
+    gs_ret gr_deg(0.0,0);
+    gr_deg.degenerate=true;
+    return gr_deg;
   }
   double sumcrv=0.0;
   for(int i=0;i<ind.size();i++){
@@ -270,7 +274,9 @@ gs_ret getgseascore_fast(vector<double> & gscore, vector<int> & ind){
   // All selected genes have zero score: no signal, and dividing by sumcrv
   // below would produce NaNs.
   if(sumcrv==0.0){
-    return gs_ret(0.0,0);
+    gs_ret gr_deg(0.0,0);
+    gr_deg.degenerate=true;
+    return gr_deg;
   }
   double decvalue=-1.0/(n-nf);
   double gsvalue=0;
@@ -336,12 +342,22 @@ gs_ret getscoreandp( string pathname, double & pval, CallingArgs & args){
   // compute, and indexing index[gr.gindex] below would read out of bounds.
   if(index.empty()){
     gs_ret gr_empty(0.0,0); // p_gsea and pval default to 1.0
+    gr_empty.degenerate=true;
     pval=1.0;
     return gr_empty;
   }
   gs_ret gr=getgseascore_fast(GSCORE,index);
   tgscore=gr.gscore;
 
+  // No enrichment score could be computed (all-zero scores, or a set covering
+  // the whole ranked list). Skip the analytic and permutation p-values: with a
+  // real score of 0 the permutation test would count no exceedances and report
+  // pval=0, falsely flagging the pathway as maximally significant. Leave the
+  // p-values at their default of 1.0.
+  if(gr.degenerate){
+    pval=1.0;
+    return gr;
+  }
 
   // get the RRA score
   int num=index.size();
