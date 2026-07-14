@@ -290,6 +290,7 @@ def mageck_pathwaygsa_fast(args):
     outputfile=args.output_prefix+'.pathway_summary.txt'
     gseacommand="mageckGSEA "
     gseacommand+=" -s "
+    gseacommand+=" -H "  # gene_ranking is a gene_summary file with a header row
     gseacommand+=" -c "+str(columnid)+" "
     gseacommand+=" -p "+str(args.permutation)
     gseacommand+=" -g \""+args.gmt_file+"\" "
@@ -305,6 +306,7 @@ def mageck_pathwaygsa_fast(args):
     columnid=args.ranking_column
     gseacommand="mageckGSEA "
     gseacommand+=" -s "
+    gseacommand+=" -H "  # gene_ranking is a gene_summary file with a header row
     gseacommand+=" -c "+str(columnid)+" "
     gseacommand+=" -p "+str(args.permutation)
     gseacommand+=" -g \""+args.gmt_file+"\" "
@@ -316,6 +318,7 @@ def mageck_pathwaygsa_fast(args):
     columnid=args.ranking_column_2; # columnid=6 if sgRNA number in positive selection is not omitted
     gseacommand="mageckGSEA "
     gseacommand+=" -s "
+    gseacommand+=" -H "  # gene_ranking is a gene_summary file with a header row
     gseacommand+=" -c "+str(columnid)+" "
     gseacommand+=" -p "+str(args.permutation)
     gseacommand+=" -g \""+args.gmt_file+"\" "

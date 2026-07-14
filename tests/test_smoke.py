@@ -225,6 +225,50 @@ def test_gsea_degenerate_pathway_is_not_maximally_significant(tmp_path):
     assert float(row[4]) == 1.0
 
 
+def _gsea_es(tmp_path, rank_text, header_flag):
+    """Run mageckGSEA on ``rank_text`` and return the enrichment score of PW."""
+    rank = tmp_path / f"rank_{'H' if header_flag else 'plain'}.txt"
+    rank.write_text(rank_text)
+    gmt = tmp_path / "p.gmt"
+    # G14..G18 hold the lowest scores, so they cluster at one end of the ranking
+    # and produce a robustly non-zero enrichment score (~0.87) rather than a
+    # near-zero value whose textual form differs across platforms.
+    gmt.write_text("PW\tna\tG14\tG15\tG16\tG17\tG18\n")
+    out = tmp_path / f"out_{'H' if header_flag else 'plain'}.txt"
+    cmd = ["mageckGSEA", "-c", "1", "-p", "100",
+           "-g", str(gmt), "-r", str(rank), "-o", str(out)]
+    if header_flag:
+        cmd.append("-H")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    rows = {
+        line.split("\t")[0]: line.split("\t")[2]
+        for line in out.read_text().splitlines()[1:]
+    }
+    return rows["PW"]
+
+
+def test_gsea_skip_header_matches_headerless(tmp_path):
+    """Regression: ``-H`` must drop the rank-file header, not rank it as a gene.
+
+    ``mageck2 pathway --method gsea`` passes a ``*.gene_summary.txt`` whose first
+    row is a header. Without skipping it, mageckGSEA parsed the header as a
+    phantom gene named ``id`` (score ``atof("neg|score") == 0``), inflating the
+    gene count and shifting every pathway's ranking, percentile, and permutation
+    math. A headered file read with ``-H`` must therefore score identically to
+    the same data with no header line at all.
+    """
+    genes = "".join(f"G{i}\t{20 - i}\n" for i in range(1, 21))  # G1..G20, distinct scores
+    headerless = _gsea_es(tmp_path, genes, header_flag=False)
+    headered = _gsea_es(tmp_path, "id\tscore\n" + genes, header_flag=True)
+
+    # -H makes the headered input score identically to the headerless data.
+    assert headered == headerless
+    # Sanity check that a real (non-degenerate) enrichment score was computed,
+    # so the equality above is meaningful and not a pair of zeros.
+    assert float(headered) > 0.5
+
+
 def test_explicit_trim5_does_not_crash(tmp_path):
     """Regression test for mageck2-doc issue #1.
 
