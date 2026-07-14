@@ -23,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - External helper commands (`RRA`, `mageckGSEA`) now fail fast with a clear,
   actionable error when they exit non-zero or are missing from `PATH`, instead
   of being silently ignored and crashing later on a file the helper never wrote.
+- `mageckGSEA` no longer maps pathway genes that are absent from the rank file
+  to the top-ranked gene (via `map::operator[]` inserting a default index of 0),
+  which silently inflated enrichment scores. Absent genes are now skipped, and a
+  pathway with no overlapping genes scores zero instead of reading out of bounds.
+- `mageckGSEA` guards against divide-by-zero / NaN in the enrichment-score
+  computation for degenerate pathways (empty overlap, all-zero scores, or a set
+  covering the entire ranked list).
+- `mageckGSEA` no longer reports a degenerate pathway (one covering the entire
+  ranked list, so no enrichment score can be computed) as maximally significant.
+  Previously the permutation test resampled the same full set, found no
+  exceedance of the zero score, and returned `p_permutation=0`; such pathways
+  now short-circuit to a p-value of 1.0 so they cannot distort sorting or FDR.
 
 ## [0.2.0] - 2026-07-10
 

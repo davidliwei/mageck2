@@ -138,6 +138,93 @@ def test_pathway_rra_end_to_end(tmp_path):
     assert (tmp_path / "pw_rra.pathway_summary.txt").exists()
 
 
+def test_gsea_skips_genes_absent_from_rank_file(tmp_path):
+    """Regression: mageckGSEA must ignore pathway genes not in the rank file.
+
+    They used to be inserted with a default index of 0 (via ``map::operator[]``)
+    and treated as the top-ranked gene, silently inflating the enrichment score.
+    Two pathways with the same real genes must therefore score identically even
+    when one is padded with genes absent from the rank file, and a pathway made
+    up entirely of absent genes must not crash (it has no overlap to score).
+    """
+    rank = tmp_path / "rank.txt"
+    rank.write_text("id\tscore\n" + "".join(f"G{i}\t{i}\n" for i in range(1, 21)))
+
+    gmt = tmp_path / "p.gmt"
+    gmt.write_text(
+        "REAL\tna\tG1\tG2\tG3\n"
+        "PADDED\tna\tG1\tG2\tG3\tFAKE1\tFAKE2\tFAKE3\n"
+        "ONLYFAKE\tna\tFAKE8\tFAKE9\n"
+    )
+
+    out = tmp_path / "out.txt"
+    result = subprocess.run(
+        [
+            "mageckGSEA",
+            "-c", "1",          # score column (0-indexed): id, score
+            "-p", "100",
+            "-g", str(gmt),
+            "-r", str(rank),
+            "-o", str(out),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+    rows = {
+        line.split("\t")[0]: line.split("\t")
+        for line in out.read_text().splitlines()[1:]
+    }
+    # ES is column index 2. Padding with absent genes must not change it.
+    assert rows["REAL"][2] == rows["PADDED"][2]
+    # A pathway with no overlap scores 0 without crashing.
+    assert float(rows["ONLYFAKE"][2]) == 0.0
+
+
+def test_gsea_degenerate_pathway_is_not_maximally_significant(tmp_path):
+    """Regression: a degenerate pathway must not report p-value 0.
+
+    When a pathway covers the entire ranked list there is no enrichment to
+    detect: ``getgseascore_fast`` returns a degenerate sentinel score of 0.
+    Every permutation resamples the same full set and also scores 0, so the
+    permutation test counted no exceedance and reported ``p_permutation=0`` --
+    flagging the pathway as *maximally* significant, exactly backwards.
+    ``getscoreandp`` must instead short-circuit and leave the p-values at 1.0.
+    """
+    # Four genes, no header line: every line is a gene, so the pathway below
+    # covers the whole ranked list (n == pathway size).
+    rank = tmp_path / "rank.txt"
+    rank.write_text("A\t4\nB\t3\nC\t2\nD\t1\n")
+
+    gmt = tmp_path / "p.gmt"
+    gmt.write_text("ALL\tna\tA\tB\tC\tD\n")
+
+    out = tmp_path / "out.txt"
+    result = subprocess.run(
+        [
+            "mageckGSEA",
+            "-c", "1",
+            "-p", "100",
+            "-g", str(gmt),
+            "-r", str(rank),
+            "-o", str(out),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+    row = {
+        line.split("\t")[0]: line.split("\t")
+        for line in out.read_text().splitlines()[1:]
+    }["ALL"]
+    # ES is column 2; permutation p-value is column 4. A degenerate pathway
+    # scores 0 and must NOT be reported as maximally significant (p=0).
+    assert float(row[2]) == 0.0
+    assert float(row[4]) == 1.0
+
+
 def test_explicit_trim5_does_not_crash(tmp_path):
     """Regression test for mageck2-doc issue #1.
 
