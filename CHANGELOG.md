@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Bundled the `mageckGSEA` C++ helper (vendored from legacy MAGeCK, BSD
+  licensed). It is compiled and installed onto `PATH` alongside `RRA`, so
+  `pathway --method gsea` — the default — now works from a pip/source install.
+- Pathway smoke tests (`pathway --method gsea` and `--method rra`, end to end)
+  and a small GMT test fixture.
+
+### Fixed
+
+- `pathway` with its default `--method gsea` no longer fails; the `mageckGSEA`
+  helper it shells out to is now built and shipped (previously absent, causing
+  an opaque `FileNotFoundError` on a missing intermediate file). See issue #10.
+- External helper commands (`RRA`, `mageckGSEA`) now fail fast with a clear,
+  actionable error when they exit non-zero or are missing from `PATH`, instead
+  of being silently ignored and crashing later on a file the helper never wrote.
+
 ## [0.2.0] - 2026-07-10
 
 Modernization of packaging, testing, and project governance, and the first

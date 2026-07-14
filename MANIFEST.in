@@ -10,6 +10,12 @@ recursive-include rra/src *.cpp *.h
 recursive-include rra/include *.h
 include rra/bin/.gitkeep
 
+# mageckGSEA C++ helper: Makefile, sources, and headers, including the bundled
+# TCLAP argument parser under gsea/src/tclap (compiled on install)
+include gsea/Makefile
+recursive-include gsea/src *.cpp *.h
+include gsea/bin/.gitkeep
+
 # CLI launch script installed onto PATH
 include bin/mageck2
 
