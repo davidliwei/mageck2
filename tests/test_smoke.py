@@ -226,11 +226,14 @@ def test_gsea_degenerate_pathway_is_not_maximally_significant(tmp_path):
 
 
 def _gsea_es(tmp_path, rank_text, header_flag):
-    """Run mageckGSEA on ``rank_text`` and return {pathway: ES}."""
+    """Run mageckGSEA on ``rank_text`` and return the enrichment score of PW."""
     rank = tmp_path / f"rank_{'H' if header_flag else 'plain'}.txt"
     rank.write_text(rank_text)
     gmt = tmp_path / "p.gmt"
-    gmt.write_text("PW\tna\tG1\tG2\tG3\n")
+    # G14..G18 hold the lowest scores, so they cluster at one end of the ranking
+    # and produce a robustly non-zero enrichment score (~0.87) rather than a
+    # near-zero value whose textual form differs across platforms.
+    gmt.write_text("PW\tna\tG14\tG15\tG16\tG17\tG18\n")
     out = tmp_path / f"out_{'H' if header_flag else 'plain'}.txt"
     cmd = ["mageckGSEA", "-c", "1", "-p", "100",
            "-g", str(gmt), "-r", str(rank), "-o", str(out)]
@@ -238,10 +241,11 @@ def _gsea_es(tmp_path, rank_text, header_flag):
         cmd.append("-H")
     result = subprocess.run(cmd, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    return {
+    rows = {
         line.split("\t")[0]: line.split("\t")[2]
         for line in out.read_text().splitlines()[1:]
     }
+    return rows["PW"]
 
 
 def test_gsea_skip_header_matches_headerless(tmp_path):
@@ -258,11 +262,11 @@ def test_gsea_skip_header_matches_headerless(tmp_path):
     headerless = _gsea_es(tmp_path, genes, header_flag=False)
     headered = _gsea_es(tmp_path, "id\tscore\n" + genes, header_flag=True)
 
-    assert headered["PW"] == headerless["PW"]
-    # And the header must not have leaked in as a phantom gene: the buggy path
-    # (header parsed as a gene) shifts the score, so a non-trivial ES confirms
-    # real genes were ranked.
-    assert float(headered["PW"]) != 0.0
+    # -H makes the headered input score identically to the headerless data.
+    assert headered == headerless
+    # Sanity check that a real (non-degenerate) enrichment score was computed,
+    # so the equality above is meaningful and not a pair of zeros.
+    assert float(headered) > 0.5
 
 
 def test_explicit_trim5_does_not_crash(tmp_path):
