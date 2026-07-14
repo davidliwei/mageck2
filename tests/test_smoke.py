@@ -225,6 +225,46 @@ def test_gsea_degenerate_pathway_is_not_maximally_significant(tmp_path):
     assert float(row[4]) == 1.0
 
 
+def _gsea_es(tmp_path, rank_text, header_flag):
+    """Run mageckGSEA on ``rank_text`` and return {pathway: ES}."""
+    rank = tmp_path / f"rank_{'H' if header_flag else 'plain'}.txt"
+    rank.write_text(rank_text)
+    gmt = tmp_path / "p.gmt"
+    gmt.write_text("PW\tna\tG1\tG2\tG3\n")
+    out = tmp_path / f"out_{'H' if header_flag else 'plain'}.txt"
+    cmd = ["mageckGSEA", "-c", "1", "-p", "100",
+           "-g", str(gmt), "-r", str(rank), "-o", str(out)]
+    if header_flag:
+        cmd.append("-H")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    return {
+        line.split("\t")[0]: line.split("\t")[2]
+        for line in out.read_text().splitlines()[1:]
+    }
+
+
+def test_gsea_skip_header_matches_headerless(tmp_path):
+    """Regression: ``-H`` must drop the rank-file header, not rank it as a gene.
+
+    ``mageck2 pathway --method gsea`` passes a ``*.gene_summary.txt`` whose first
+    row is a header. Without skipping it, mageckGSEA parsed the header as a
+    phantom gene named ``id`` (score ``atof("neg|score") == 0``), inflating the
+    gene count and shifting every pathway's ranking, percentile, and permutation
+    math. A headered file read with ``-H`` must therefore score identically to
+    the same data with no header line at all.
+    """
+    genes = "".join(f"G{i}\t{20 - i}\n" for i in range(1, 21))  # G1..G20, distinct scores
+    headerless = _gsea_es(tmp_path, genes, header_flag=False)
+    headered = _gsea_es(tmp_path, "id\tscore\n" + genes, header_flag=True)
+
+    assert headered["PW"] == headerless["PW"]
+    # And the header must not have leaked in as a phantom gene: the buggy path
+    # (header parsed as a gene) shifts the score, so a non-trivial ES confirms
+    # real genes were ranked.
+    assert float(headered["PW"]) != 0.0
+
+
 def test_explicit_trim5_does_not_crash(tmp_path):
     """Regression test for mageck2-doc issue #1.
 

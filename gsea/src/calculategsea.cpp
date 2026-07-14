@@ -21,7 +21,8 @@ struct CallingArgs{
   int perms;
   bool needsort;
   int scorecolumn; //column for scoring
-  bool reverse; // whether we need to reverse the order of the gene 
+  bool reverse; // whether we need to reverse the order of the gene
+  bool skipheader; // skip the first (header) line of the rank file
 };
 
 typedef map<string, vector<string> > pathmap;
@@ -88,9 +89,11 @@ int parseArguments(int argc, char* argv[],CallingArgs& args){
     cmd.add(hassarg);
     SwitchArg reversearg("e","reverse_value","Reverse the order of the gene.");
     cmd.add(reversearg);
-    
+    SwitchArg skipheaderarg("H","skip_header","Skip the first (header) line of the rank file.");
+    cmd.add(skipheaderarg);
+
     cmd.parse(argc,argv);
-    
+
     args.gmtfile=gmtfilearg.getValue();
     args.rankfile=rankfilearg.getValue();
     args.outputfile=outputfilearg.getValue();
@@ -99,6 +102,7 @@ int parseArguments(int argc, char* argv[],CallingArgs& args){
     args.needsort=hassarg.getValue();
     args.scorecolumn=scorecolumnarg.getValue();
     args.reverse=reversearg.getValue();
+    args.skipheader=skipheaderarg.getValue();
     
   }catch(ArgException &e){
     cerr<<"error: "<<e.error()<<" for arg "<<e.argId();
@@ -154,6 +158,12 @@ int parserankfile(string rankf,vector<string>& gname, vector<double>& gscore, Ca
     return -1;
   }
   string oneline;
+  // Drop the header line if requested (e.g. MAGeCK's gene_summary output, whose
+  // first row is column names). Otherwise it would be parsed as a phantom gene
+  // and skew the ranking, percentile, and permutation calculations.
+  if(args.skipheader){
+    getline(ifs,oneline);
+  }
   while(true){
     getline(ifs,oneline);
     ncount++;

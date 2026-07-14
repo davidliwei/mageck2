@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Previously the permutation test resampled the same full set, found no
   exceedance of the zero score, and returned `p_permutation=0`; such pathways
   now short-circuit to a p-value of 1.0 so they cannot distort sorting or FDR.
+- `pathway --method gsea` no longer ranks the gene-ranking file's header row as a
+  phantom gene. The default input is a `*.gene_summary.txt` whose first row is a
+  header; `mageckGSEA` used to parse it as a gene named `id` with score 0,
+  inflating the gene count and shifting the ranking, percentile, and permutation
+  math for every pathway. `mageckGSEA` now accepts a `-H` / `--skip-header`
+  switch, and `pathway --method gsea` passes it so the header is dropped.
 
 ## [0.2.0] - 2026-07-10
 
