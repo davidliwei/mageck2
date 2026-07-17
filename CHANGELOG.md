@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Previously the permutation test resampled the same full set, found no
   exceedance of the zero score, and returned `p_permutation=0`; such pathways
   now short-circuit to a p-value of 1.0 so they cannot distort sorting or FDR.
+- Corrected the `count` help text for the paired-guide options `--pg-start`,
+  `--pg-end`, `--pg-start-2`, and `--pg-end-2`, which was accidentally copied from
+  the UMI options (it described the position "of UMI" and referenced `--umi-start`
+  / `--umi-end`). It now describes the second guide and the correct coordinate
+  reference for each `--pairguide` mode. Also fixed the `--pg-min-read` help, which
+  stated "Default 2" while the actual default is 3. See issue #22.
 - `pathway --method gsea` no longer ranks the gene-ranking file's header row as a
   phantom gene. The default input is a `*.gene_summary.txt` whose first row is a
   header; `mageckGSEA` used to parse it as a gene named `id` with score 0,
