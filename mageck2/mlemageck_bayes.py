@@ -133,7 +133,7 @@ def postargs(args):
     logging.getLogger('').addHandler(console)
     logging.info('Parameters: '+' '.join(sys.argv))
 
-    from mledesignmat import parse_designmat
+    from mageck2.mledesignmat import parse_designmat,validate_designmat
 
     try:
         import scipy
@@ -180,6 +180,8 @@ def postargs(args):
         if len(args.beta_labels) != desmat.shape[1]:
             logging.error('The number of labels in the --beta-labels option do not match columns in design matrix.')
             sys.exit(-1)
+    # reject matrices the model cannot fit, before any read counts are loaded
+    validate_designmat(desmat,args.include_samples)
     # log design matrix and column, row labels
     logging.info('Design matrix:')
     for desmat_1line in str(desmat).split('\n'):

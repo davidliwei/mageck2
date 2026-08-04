@@ -71,6 +71,68 @@ def analyze_designmat(design_mat):
   new_design_matrix=design_mat[init_design_othersample,1:]
   return (init_design_basesample,new_design_matrix)
 
+def validate_designmat(design_mat,samples=None):
+  '''
+  Check the structural assumptions the MLE model makes about the design matrix.
+
+  DesignMatCache.save_record() fits the model from design_mat[1:,1:]: the first
+  column is consumed as the baseline (per-sgRNA) term and the first row is
+  consumed as the reference sample, so that row's condition entries are never
+  read. Nothing downstream checks either assumption, so a matrix that violates
+  them is silently mis-fitted rather than rejected -- whatever sample happens to
+  be first is treated as the reference and the conditions it was assigned are
+  dropped, shifting every beta measured against it.
+
+  Parameters
+  ----------
+  design_mat
+    The parsed design matrix.
+  samples
+    Optional row labels (sample ids), used to name the offending sample.
+
+  Return value: None. Exits with -1 if the matrix is not usable.
+  '''
+  def label(i):
+    if samples is not None and i < len(samples):
+      return "'"+str(samples[i])+"'"
+    return 'row '+str(i+1)
+
+  (nrow,ncol)=design_mat.shape
+  if nrow < 2 or ncol < 2:
+    logging.error('The design matrix needs at least 2 rows (a baseline sample and one other sample) '
+                  'and 2 columns (the baseline column and one condition); got '
+                  +str(nrow)+' row(s) and '+str(ncol)+' column(s).')
+    sys.exit(-1)
+
+  # the first column is consumed as the baseline term, so it must be 1 everywhere
+  basecol=[x[0] for x in design_mat[:,0].tolist()]
+  notone=[i for i in range(nrow) if basecol[i]!=1]
+  if len(notone)>0:
+    logging.error('The first column of the design matrix is the baseline column and must be 1 for '
+                  'every sample, but it is not for: '+', '.join([label(i) for i in notone])+'.')
+    sys.exit(-1)
+
+  # a baseline sample is one with no condition assigned: 1 in the baseline column, 0 elsewhere
+  basesample=[i for i in range(nrow) if all([v==0 for v in design_mat[i,1:].tolist()[0]])]
+  if len(basesample)==0:
+    logging.error('The design matrix has no baseline sample. At least one sample (usually day 0 or '
+                  'the plasmid library) must have 1 in the baseline column and 0 in every condition '
+                  'column, to serve as the reference the beta scores are measured against.')
+    sys.exit(-1)
+  if 0 not in basesample:
+    logging.error('The first row of the design matrix must be a baseline sample, but '+label(0)
+                  +' has non-zero entries in condition column(s). Baseline sample(s) found: '
+                  +', '.join([label(i) for i in basesample])
+                  +'. Move a baseline row to the top of the design matrix.')
+    sys.exit(-1)
+  if len(basesample)>1:
+    logging.info('Note: '+str(len(basesample))+' samples ('
+                 +', '.join([label(i) for i in basesample])
+                 +') are baseline-only and are pooled into a single shared reference. '
+                 'If they are not meant to share a starting representation, run mle separately '
+                 'for each.')
+
+
 def parse_designmat_from_day0(args):
   '''
   Parse the design matrix from a string.
@@ -230,8 +292,12 @@ class DesignMatCache:
     # calculate the number of base line samples
     #
     nsample=orig_design_mat.shape[0]-1 # the number of samples excluding the 1st base sample
+    # indices of the baseline-only samples; iteratenbem() averages their log counts to seed the
+    # per-sgRNA baseline beta, which is how multiple baseline samples get pooled into one reference.
     (basesampleid,_new_designmat)=analyze_designmat(orig_design_mat)
-    design_mat=orig_design_mat[1:,1:] # assuming the 1st column must be the baseline condition, and the 1st row is the base line condition; they are removed.
+    # the 1st column must be the baseline condition and the 1st row the baseline sample; both are
+    # removed here. validate_designmat() enforces that at parse time -- do not relax it silently.
+    design_mat=orig_design_mat[1:,1:]
     extdesign_mat=getextenddesignmat(n,nsample,design_mat,includebase=True)
     extdesignmat_residule=extdesign_mat[0:(nsample+1)*n,n:] # this is the design matrix containing only non-baseline betas and first (nsample+1) samples
     # save
