@@ -402,3 +402,132 @@ def test_read_cnvdata_accepts_string_symbols(tmp_path):
     assert gene_dict == {"GENE1": 0, "GENE2": 1}
     assert cell_dict == {"HL60": 0}
     assert cnv_arr.tolist() == [[1.0], [4.0]]
+
+
+def _write_designmat(tmp_path, name, rows, header="Samples\tbaseline\tHL60\tKBM7"):
+    p = tmp_path / name
+    p.write_text(header + "\n" + "".join("\t".join(r) + "\n" for r in rows))
+    return p
+
+
+def _run_mle(tmp_path, designmat, prefix):
+    return subprocess.run(
+        [
+            "mageck2", "mle",
+            "-k", str(DATA),
+            "-d", str(designmat),
+            "-n", prefix,
+            "--permutation-round", "1",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+
+# Rows for the bundled count table, in the order the model requires: the two
+# baseline-only samples first, then one condition each.
+_GOOD_ROWS = [
+    ["HL60.initial", "1", "0", "0"],
+    ["KBM7.initial", "1", "0", "0"],
+    ["HL60.final", "1", "1", "0"],
+    ["KBM7.final", "1", "0", "1"],
+]
+
+
+def test_mle_rejects_non_baseline_first_row(tmp_path):
+    """Regression: the baseline sample must be the first row of the design matrix.
+
+    ``DesignMatCache.save_record`` fits the model from ``design_mat[1:,1:]`` --
+    row 0 is consumed as the reference and its own design row is never read. A
+    matrix whose first row is a *condition* sample used to run to completion
+    anyway: that sample was silently treated as a baseline and its condition
+    discarded, biasing every beta measured against the reference. It must now be
+    rejected before any counts are read.
+    """
+    rows = [_GOOD_ROWS[2]] + [_GOOD_ROWS[0], _GOOD_ROWS[1], _GOOD_ROWS[3]]
+    designmat = _write_designmat(tmp_path, "badorder.txt", rows)
+
+    result = _run_mle(tmp_path, designmat, "badorder")
+
+    assert result.returncode != 0, "a non-baseline first row must not be accepted"
+    combined = result.stdout + result.stderr
+    assert "first row" in combined and "HL60.final" in combined
+    assert not (tmp_path / "badorder.gene_summary.txt").exists()
+
+
+def test_mle_rejects_designmat_without_baseline_sample(tmp_path):
+    """Every sample carrying a condition leaves no reference to fit against."""
+    rows = [
+        ["HL60.initial", "1", "1", "0"],
+        ["KBM7.initial", "1", "0", "1"],
+        ["HL60.final", "1", "1", "0"],
+        ["KBM7.final", "1", "0", "1"],
+    ]
+    designmat = _write_designmat(tmp_path, "nobase.txt", rows)
+
+    result = _run_mle(tmp_path, designmat, "nobase")
+
+    assert result.returncode != 0
+    assert "no baseline sample" in result.stdout + result.stderr
+
+
+def test_mle_rejects_non_unit_baseline_column(tmp_path):
+    """The first column is consumed as the baseline term, so it must be all 1s."""
+    rows = [
+        ["HL60.initial", "1", "0", "0"],
+        ["KBM7.initial", "0", "0", "0"],
+        ["HL60.final", "1", "1", "0"],
+        ["KBM7.final", "1", "0", "1"],
+    ]
+    designmat = _write_designmat(tmp_path, "badcol.txt", rows)
+
+    result = _run_mle(tmp_path, designmat, "badcol")
+
+    assert result.returncode != 0
+    combined = result.stdout + result.stderr
+    assert "baseline column" in combined and "KBM7.initial" in combined
+
+
+def test_mle_accepts_valid_designmat_with_pooled_baselines(tmp_path):
+    """The demo matrix -- two baseline-only samples pooled -- must still run.
+
+    Guards the validation above against over-rejecting: multiple baseline rows
+    are legal (they are pooled into one shared reference, see issue #23).
+    """
+    designmat = _write_designmat(tmp_path, "good.txt", _GOOD_ROWS)
+
+    result = _run_mle(tmp_path, designmat, "good")
+
+    assert result.returncode == 0, result.stderr
+    gene_summary = tmp_path / "good.gene_summary.txt"
+    assert gene_summary.exists()
+    header = gene_summary.read_text().splitlines()[0].split("\t")
+    assert "HL60|beta" in header and "KBM7|beta" in header
+
+
+def test_documented_designmat_example_is_valid():
+    """The example in `mageck2 mle --help` must satisfy the design-matrix rules.
+
+    The help text advertised "1,1;1,0" as the simplest invocation, but that
+    matrix leads with a condition sample, so validate_designmat rejects it --
+    following the documentation verbatim produced an error. Extract whatever
+    example the help text currently advertises and check it actually validates,
+    so the two cannot drift apart again.
+    """
+    import re
+
+    from mageck2.mledesignmat import parse_designmat, validate_designmat
+
+    result = subprocess.run(
+        ["mageck2", "mle", "--help"], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+
+    # collapse argparse's line wrapping before matching the quoted example
+    helptext = " ".join(result.stdout.split())
+    example = re.search(r'For example, "([0-9,;]+)"', helptext)
+    assert example is not None, "no design-matrix example found in mle --help"
+
+    desmat, _rows, _cols = parse_designmat(example.group(1))
+    validate_designmat(desmat)  # raises SystemExit if the example is not usable

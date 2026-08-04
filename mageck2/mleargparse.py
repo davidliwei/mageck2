@@ -34,7 +34,7 @@ def mageckmle_postargs(args):
   
   logging.info('Parameters: '+' '.join(sys.argv))
  
-  from mageck2.mledesignmat import parse_designmat,parse_designmat_from_day0
+  from mageck2.mledesignmat import parse_designmat,parse_designmat_from_day0,validate_designmat
   
   try:
     import scipy
@@ -88,6 +88,9 @@ def mageckmle_postargs(args):
       logging.error('The number of labels in the --beta-labels option do not match columns in design matrix.')
       sys.exit(-1)
   #
+  # reject matrices the model cannot fit, before any read counts are loaded
+  validate_designmat(desmat,args.include_samples)
+  #
   # log design matrix and column, row labels
   logging.info('Design matrix:')
   for desmat_1line in str(desmat).split('\n'):
@@ -121,7 +124,7 @@ def mageckmle_parseargs(pvargs=None):
   parser.add_argument('--update-efficiency',action='store_true',help='Iteratively update sgRNA efficiency during EM iteration.')
   # required parameters
   parser.add_argument('-k','--count-table',required=True,help='Provide a tab-separated count table. Each line in the table should include sgRNA name (1st column), target gene (2nd column) and read counts in each sample.')
-  parser.add_argument('-d','--design-matrix',required=True,help='Provide a design matrix, either a file name or a quoted string of the design matrix. For example, "1,1;1,0". The row of the design matrix must match the order of the samples in the count table (if --include-samples is not specified), or the order of the samples by the --include-samples option.')
+  parser.add_argument('-d','--design-matrix',required=True,help='Provide a design matrix, either a file name or a quoted string of the design matrix. For example, "1,0;1,1", where the first row is the baseline sample. The row of the design matrix must match the order of the samples in the count table (if --include-samples is not specified), or the order of the samples by the --include-samples option.')
   #
   if pvargs == None:
     args=parser.parse_args()
