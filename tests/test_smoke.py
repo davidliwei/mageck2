@@ -504,3 +504,30 @@ def test_mle_accepts_valid_designmat_with_pooled_baselines(tmp_path):
     assert gene_summary.exists()
     header = gene_summary.read_text().splitlines()[0].split("\t")
     assert "HL60|beta" in header and "KBM7|beta" in header
+
+
+def test_documented_designmat_example_is_valid():
+    """The example in `mageck2 mle --help` must satisfy the design-matrix rules.
+
+    The help text advertised "1,1;1,0" as the simplest invocation, but that
+    matrix leads with a condition sample, so validate_designmat rejects it --
+    following the documentation verbatim produced an error. Extract whatever
+    example the help text currently advertises and check it actually validates,
+    so the two cannot drift apart again.
+    """
+    import re
+
+    from mageck2.mledesignmat import parse_designmat, validate_designmat
+
+    result = subprocess.run(
+        ["mageck2", "mle", "--help"], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+
+    # collapse argparse's line wrapping before matching the quoted example
+    helptext = " ".join(result.stdout.split())
+    example = re.search(r'For example, "([0-9,;]+)"', helptext)
+    assert example is not None, "no design-matrix example found in mle --help"
+
+    desmat, _rows, _cols = parse_designmat(example.group(1))
+    validate_designmat(desmat)  # raises SystemExit if the example is not usable

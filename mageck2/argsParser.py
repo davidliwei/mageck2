@@ -168,7 +168,7 @@ def arg_mle(subparser):
   reqgroup=subm_mle.add_argument_group(title='Required arguments',description='')
   reqgroup.add_argument('-k','--count-table',required=True,help='Provide a tab-separated count table. Each line in the table should include sgRNA name (1st column), target gene (2nd column) and read counts in each sample.')
   subp_mle_mg=reqgroup.add_mutually_exclusive_group(required=True)
-  subp_mle_mg.add_argument('-d','--design-matrix',help='Provide a design matrix, either a file name or a quoted string of the design matrix. For example, "1,1;1,0". The row of the design matrix must match the order of the samples in the count table (if --include-samples is not specified), or the order of the samples by the --include-samples option.')
+  subp_mle_mg.add_argument('-d','--design-matrix',help='Provide a design matrix, either a file name or a quoted string of the design matrix. For example, "1,0;1,1", where the first row is the baseline sample. The row of the design matrix must match the order of the samples in the count table (if --include-samples is not specified), or the order of the samples by the --include-samples option.')
   subp_mle_mg.add_argument('--day0-label',help='Specify the label for control sample (usually day 0 or plasmid). For every other sample label, the MLE module will treat it as a single condition and generate an corresponding design matrix.')
   # optional arguments
   #opgroup=subm_mle.add_argument_group(title='Optional arguments',description='Optional arguments')
