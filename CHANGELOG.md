@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pathway --method gsea` — the default — now works from a pip/source install.
 - Pathway smoke tests (`pathway --method gsea` and `--method rra`, end to end)
   and a small GMT test fixture.
+- `count` writes `<prefix>.pg_unmapped.txt` when `--unmapped-to-file` is given in
+  paired-guide mode, recording pairs that were counted but excluded from
+  `pg_count.txt` — because the second guide matched no entry in `--list-seq-2`,
+  or because the combination is absent from `--pg-pair-only`. Previously these
+  were discarded with no record, so a filtered pair was indistinguishable from
+  one that was never sequenced. See issue #27.
+- End-to-end tests for paired-guide counting, covering the allowed-pair filter,
+  the new pair-level unmapped file, and read pairs whose first guide is unmatched.
 
 ### Fixed
 
@@ -47,6 +55,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inflating the gene count and shifting the ranking, percentile, and permutation
   math for every pathway. `mageckGSEA` now accepts a `-H` / `--skip-header`
   switch, and `pathway --method gsea` passes it so the header is dropped.
+- Library rows dropped for duplicating an earlier row's sequence are now reported
+  actionably. The message names the library file, the dropped sgRNA IDs, and the
+  representative ID that now carries their reads, instead of only counting them
+  ("There are N sgRNAs with duplicated sequences"). It is also no longer emitted
+  when nothing was dropped. See issue #27.
+- The `--pg-pair-only` warning for an ID missing from a library now distinguishes
+  the common cause from a genuine mismatch. When the ID was dropped as a duplicate
+  sequence, the message says so, states that the pair will be excluded from the
+  paired-guide counts, and names the representative ID to use instead. See issue #27.
+- `count` no longer crashes with `TypeError` when writing the pair-level unmapped
+  file for a run where some first reads matched no guide. In `--pairguide secondpair`
+  mode the second-read window is recorded even when the first read matched nothing,
+  under a `None` key; those entries are now skipped, and remain reported in the
+  read-level `unmapped.txt`. See issue #27.
 
 ## [0.2.0] - 2026-07-10
 
