@@ -398,7 +398,9 @@ def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datast
       for (k2,v) in umidict.items():
         if k2 not in sgdict2:
           if ounmappedfile != None:
-            print(sep.join([k+'_'+k2,sx[0]+'_'+k2]+[str(x) for x in v]),file=ounmappedfile)
+            # the second guide has no ID and no gene: identify it by sequence, and
+            # keep the columns meaning what the header says they mean
+            print(sep.join([sx[0]+'_'+k2,sx[1]+'_None']+[str(x) for x in v]),file=ounmappedfile)
         else:
           sx2=sgdict2[k2]
           totalr=sum(v)

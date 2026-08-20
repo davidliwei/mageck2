@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pg_count.txt` — because the second guide matched no entry in `--list-seq-2`,
   or because the combination is absent from `--pg-pair-only`. Previously these
   were discarded with no record, so a filtered pair was indistinguishable from
-  one that was never sequenced. See issue #27.
+  one that was never sequenced. The columns match `pg_count.txt`; a second guide
+  that matched no library entry has no ID or gene, so it is identified by its
+  sequence and its gene is reported as `None`. See issue #27.
 - End-to-end tests for paired-guide counting, covering the allowed-pair filter,
   the new pair-level unmapped file, and read pairs whose first guide is unmatched.
 

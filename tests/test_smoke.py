@@ -647,7 +647,7 @@ def test_pg_pair_only_warning_explains_duplicate_drop(tmp_path, caplog):
     assert "duplicate" in message.lower()
 
 
-def _write_paired_guide_fixture(tmp_path, unmatched_first_reads=0):
+def _write_paired_guide_fixture(tmp_path, unmatched_first_reads=0, unmatched_second_reads=0):
     """A two-construct dual-guide library, one construct allowed by the pair file."""
     guide1 = "ACGTACGTACGTACGTACGT"
     guide1b = "AACCGGTTAACCGGTTAACC"  # in the library, never sequenced
@@ -680,6 +680,9 @@ def _write_paired_guide_fixture(tmp_path, unmatched_first_reads=0):
     # read pairs whose first guide matches nothing in the library
     r1 += ["TTTTTTTTTTTTTTTTTTTT"] * unmatched_first_reads
     r2 += [guide2a] * unmatched_first_reads
+    # read pairs whose second guide matches nothing in the second library
+    r1 += [guide1] * unmatched_second_reads
+    r2 += ["CCCCCCCCCCCCCCCCCCCC"] * unmatched_second_reads
     (tmp_path / "r1.fastq").write_text(fastq(r1))
     (tmp_path / "r2.fastq").write_text(fastq(r2))
 
@@ -761,3 +764,30 @@ def test_pg_unmapped_file_tolerates_unmatched_first_reads(tmp_path):
     # the unmatched first reads are still reported, at the read level
     read_unmapped = (tmp_path / "pg.unmapped.txt").read_text()
     assert "TTTTTTTTTTTTTTTTTTTT" in read_unmapped
+
+
+def test_pg_unmapped_rows_match_their_header(tmp_path):
+    """Every row of pg_unmapped.txt must mean what the header says.
+
+    A pair whose second guide matched no entry in --list-seq-2 has no second ID
+    and no second gene, but the row was serialized as sequences under an
+    "sgRNA1_sgRNA2 / Gene1_Gene2" header: column 1 held two raw sequences and
+    column 2 held an sgRNA ID joined to a sequence. Anything parsing this file
+    reads a 20-mer where an ID belongs. Report the known first guide by ID and
+    gene, keep the unmatched second sequence as its only available identifier,
+    and mark the missing gene explicitly.
+    """
+    _write_paired_guide_fixture(tmp_path, unmatched_second_reads=2)
+    result = _run_paired_guide_count(tmp_path, extra_args=["--unmapped-to-file"])
+    assert result.returncode == 0, result.stderr
+
+    rows = [r.split("\t") for r in (tmp_path / "pg.pg_unmapped.txt").read_text().splitlines()]
+    assert rows[0][:2] == ["sgRNA1_sgRNA2", "Gene1_Gene2"]
+
+    unmapped = {r[0]: (r[1], r[2]) for r in rows[1:]}
+
+    # excluded by --pg-pair-only: both guides are known, so both are named
+    assert unmapped["sg1_sg2b"] == ("GENE1_GENE3", "3")
+
+    # second guide unknown: first guide by ID and gene, second by sequence
+    assert unmapped["sg1_CCCCCCCCCCCCCCCCCCCC"] == ("GENE1_None", "2")
