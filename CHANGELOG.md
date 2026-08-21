@@ -66,6 +66,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the common cause from a genuine mismatch. When the ID was dropped as a duplicate
   sequence, the message says so, states that the pair will be excluded from the
   paired-guide counts, and names the representative ID to use instead. See issue #27.
+- `--pg-pair-only` no longer silently excludes whole constructs from `pg_count.txt`
+  when the pair file names an sgRNA ID that was dropped for duplicating an earlier
+  sequence. Counting resolves a sequence to its one surviving ID, but the pair file
+  was matched by the ID as written, so such pairs could never match even though
+  their sequence pair had been counted correctly; users had to rewrite the pair
+  file by hand. Those IDs are now resolved to the representative ID, with a log
+  summary of how many entries were remapped and what they became. Where two pair-file
+  entries resolve onto the same pair -- possible when both libraries contain
+  duplicated sequences -- their reads are indistinguishable by sequence and are
+  reported as one row, which is now warned about rather than silently summed.
+  See issue #28.
 - `count` no longer crashes with `TypeError` when writing the pair-level unmapped
   file for a run where some first reads matched no guide. In `--pairguide secondpair`
   mode the second-read window is recorded even when the first read matched nothing,

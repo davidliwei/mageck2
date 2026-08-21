@@ -44,8 +44,8 @@ def mageckcount_missing_pgid_reason(sgid,which,dropped):
   '''
   if sgid in dropped:
     return ('sgRNA ID '+sgid+' was dropped from the '+which+' library because its sequence is already '
-        +'used by '+dropped[sgid]+' (a duplicate sequence). This pair will be excluded from the '
-        +'paired-guide counts; use '+dropped[sgid]+' instead.')
+        +'used by '+dropped[sgid]+' (a duplicate sequence). It is resolved to '+dropped[sgid]
+        +' for paired-guide matching, and the pair is counted under that ID.')
   return 'sgRNA ID '+sgid+' not in the '+which+' library.'
 
 def mageckcount_iter_pg_pair_file(filename):
@@ -118,6 +118,10 @@ def mageckcount_checkargs(args):
         if field[1] not in genedict2:
           logging.warning('Warning in the line '+str(nl)+' of '+args.pg_pair_only+': '
               +mageckcount_missing_pgid_reason(field[1],'second',dropped2))
+  # counting resolves a sequence to its representative ID, so --pg-pair-only has
+  # to be matched against the same names
+  args.pg_dropped_ids=dropped
+  args.pg_dropped_ids_2=dropped2
 
   # check count table
   if args.count_table != None:
@@ -362,19 +366,46 @@ def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datast
   (slabel,nsample)=mageckcount_getsamplelabel(args,datastat)
   # read paired-guide sgRNA ID list, if possible
   pg_dict=None
+  dropped=getattr(args,'pg_dropped_ids',None) or {}
+  dropped2=getattr(args,'pg_dropped_ids_2',None) or {}
   if args.pg_pair_only != None:
     pg_dict={}
     nrecord=0
+    naliased=0
+    aliases=[] # dropped -> representative, for reporting
+    pg_origin={} # {(resolved_id_1,resolved_id_2):(given_id_1,given_id_2)}
     for (nl,field) in mageckcount_iter_pg_pair_file(args.pg_pair_only):
       if len(field)<2:
         continue
       nrecord+=1
-      sg_1=field[0]; sg_2=field[1]
+      sg_1=dropped.get(field[0],field[0]); sg_2=dropped2.get(field[1],field[1])
+      if sg_1!=field[0] or sg_2!=field[1]:
+        naliased+=1
+        for (given,resolved) in ((field[0],sg_1),(field[1],sg_2)):
+          if given!=resolved and (given+' -> '+resolved) not in aliases:
+            aliases+=[given+' -> '+resolved]
+      if (sg_1,sg_2) in pg_origin:
+        given=pg_origin[(sg_1,sg_2)]
+        if given!=(field[0],field[1]):
+          # the two entries name the same pair of sequences, so no counter can
+          # separate them; say so rather than silently summing their reads
+          logging.warning('Pair-file entries '+given[0]+'+'+given[1]+' and '+field[0]+'+'+field[1]
+              +' resolve to the same pair '+sg_1+'+'+sg_2+' after duplicate-sequence resolution. '
+              +'Their reads are indistinguishable by sequence and are reported as a single row.')
+      else:
+        pg_origin[(sg_1,sg_2)]=(field[0],field[1])
       if sg_1 not in pg_dict:
         pg_dict[sg_1]={}
       if sg_2 not in pg_dict[sg_1]:
         pg_dict[sg_1][sg_2]=0
     logging.info(str(nrecord)+' records in '+args.pg_pair_only+' loaded.')
+    if naliased>0:
+      examples=aliases[:5]
+      if len(aliases)>len(examples):
+        examples+=['...']
+      logging.info(str(naliased)+' of '+str(nrecord)+' records in '+args.pg_pair_only+' name sgRNAs that were '
+          +'dropped as duplicate sequences; they are resolved to the representative IDs used for counting: '
+          +', '.join(examples))
   # print header
   print('sgRNA1_sgRNA2'+sep+'Gene1_Gene2'+sep+sep.join(slabel),file=ofile)
   if ounmappedfile != None:
