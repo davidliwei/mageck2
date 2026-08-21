@@ -791,3 +791,249 @@ def test_pg_unmapped_rows_match_their_header(tmp_path):
 
     # second guide unknown: first guide by ID and gene, second by sequence
     assert unmapped["sg1_CCCCCCCCCCCCCCCCCCCC"] == ("GENE1_None", "2")
+
+
+def _write_duplicate_sequence_pg_fixture(tmp_path):
+    """A dual-guide library indexed by construct, so one position-1 ID is a
+    duplicate-sequence casualty -- the shape reported in issue #15.
+
+    sg1 and sg1_dup carry the same sequence, so sg1_dup is dropped on load and
+    sg1 represents that sequence. The pair file, written against the original
+    construct nomenclature, names sg1_dup for the second construct.
+    """
+    guide1 = "ACGTACGTACGTACGTACGT"
+    guide1b = "AACCGGTTAACCGGTTAACC"  # in the library, never sequenced
+    guide2a = "TGCATGCATGCATGCATGCA"
+    guide2b = "GGGGCCCCAAAATTTTGGGG"
+
+    (tmp_path / "lib1.txt").write_text(
+        "sgRNA\tsequence\tgene\n"
+        f"sg1\t{guide1}\tGENE1\n"
+        f"sg1_dup\t{guide1}\tGENE1\n"
+        f"sg1b\t{guide1b}\tGENE1\n"
+    )
+    (tmp_path / "lib2.txt").write_text(
+        "sgRNA\tsequence\tgene\n"
+        f"sg2a\t{guide2a}\tGENE2\n"
+        f"sg2b\t{guide2b}\tGENE3\n"
+    )
+    (tmp_path / "pairs.txt").write_text(
+        "guide1\tguide2\n"
+        "sg1\tsg2a\n"
+        "sg1_dup\tsg2b\n"
+    )
+
+    def fastq(reads):
+        return "".join(
+            f"@r{i}\n{seq}\n+\n{'I' * len(seq)}\n" for i, seq in enumerate(reads)
+        )
+
+    (tmp_path / "r1.fastq").write_text(fastq([guide1] * 7))
+    (tmp_path / "r2.fastq").write_text(fastq([guide2a] * 4 + [guide2b] * 3))
+
+
+def test_pg_pair_only_matches_pairs_naming_dropped_ids(tmp_path):
+    """A pair file naming a dropped duplicate ID must still match its construct.
+
+    --pg-pair-only is matched by ID, but counting resolves a sequence to the one
+    surviving ID, so a pair naming a dropped ID could never match and the whole
+    construct was excluded from pg_count.txt -- despite its sequence pair having
+    been counted correctly. Users had to rewrite the pair file by hand. The
+    remapping is mechanical, so do it. See issue #28.
+    """
+    _write_duplicate_sequence_pg_fixture(tmp_path)
+    result = _run_paired_guide_count(tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    rows = (tmp_path / "pg.pg_count.txt").read_text().splitlines()
+    counts = {r.split("\t")[0]: r.split("\t")[2] for r in rows[1:]}
+
+    # sg1_dup was dropped on load, so its construct is labelled with sg1
+    assert counts == {"sg1_sg2a": "4", "sg1_sg2b": "3"}
+
+
+def test_pg_pair_only_warning_reports_resolution_not_exclusion(tmp_path, caplog):
+    """The startup warning must describe what now happens, not what used to.
+
+    It told the user the pair would be excluded and to edit the pair file. Both
+    are obsolete once the ID is resolved automatically. See issue #28.
+    """
+    import logging
+    from types import SimpleNamespace
+
+    from mageck2.mageckCount import mageckcount_checkargs
+
+    _write_duplicate_sequence_pg_fixture(tmp_path)
+
+    args = SimpleNamespace(
+        fastq=["r1.fastq"],
+        fastq_2=["r2.fastq"],
+        list_seq=str(tmp_path / "lib1.txt"),
+        list_seq_2=str(tmp_path / "lib2.txt"),
+        reverse_complement=False,
+        reverse_complement_2=False,
+        sample_label="",
+        pg_pair_only=str(tmp_path / "pairs.txt"),
+        count_table=None,
+        day0_label=None,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        mageckcount_checkargs(args)
+
+    pair_messages = [r.getMessage() for r in caplog.records if "pairs.txt" in r.getMessage()]
+    assert len(pair_messages) == 1
+    message = pair_messages[0]
+
+    assert "sg1_dup" in message
+    assert "sg1" in message
+    assert "resolved" in message.lower()
+    assert "excluded" not in message.lower()
+
+
+def test_pg_pair_only_logs_alias_summary(tmp_path):
+    """Resolution must never be silent.
+
+    On a construct-indexed library most of the pair file is remapped, and the
+    user has to be able to see how many entries were affected and what they
+    became. See issue #28.
+    """
+    _write_duplicate_sequence_pg_fixture(tmp_path)
+    result = _run_paired_guide_count(tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    assert "1 of 2 records" in result.stderr
+    assert "sg1_dup -> sg1" in result.stderr
+
+
+def test_pg_pair_only_reports_colliding_resolved_pairs(tmp_path):
+    """Two entries that resolve to the same pair must be reported, not merged
+    in silence.
+
+    Uniqueness has to hold at the sequence-pair level, not the ID-pair level.
+    When both libraries contain duplicated sequences, two distinct pair-file
+    entries can resolve onto one row; their reads are then indistinguishable and
+    are summed. That is unavoidable -- but the user has to be told. See #28.
+    """
+    guide1 = "ACGTACGTACGTACGTACGT"
+    guide1b = "AACCGGTTAACCGGTTAACC"
+    guide2a = "TGCATGCATGCATGCATGCA"
+
+    (tmp_path / "lib1.txt").write_text(
+        "sgRNA\tsequence\tgene\n"
+        f"sg1\t{guide1}\tGENE1\n"
+        f"sg1_dup\t{guide1}\tGENE1\n"
+        f"sg1b\t{guide1b}\tGENE1\n"
+    )
+    (tmp_path / "lib2.txt").write_text(
+        "sgRNA\tsequence\tgene\n"
+        f"sg2a\t{guide2a}\tGENE2\n"
+        f"sg2a_dup\t{guide2a}\tGENE2\n"
+    )
+    (tmp_path / "pairs.txt").write_text(
+        "guide1\tguide2\n"
+        "sg1\tsg2a\n"
+        "sg1_dup\tsg2a_dup\n"
+    )
+    reads = [(guide1, guide2a)] * 5
+    (tmp_path / "r1.fastq").write_text(
+        "".join(f"@r{i}\n{a}\n+\n{'I' * len(a)}\n" for i, (a, _) in enumerate(reads))
+    )
+    (tmp_path / "r2.fastq").write_text(
+        "".join(f"@r{i}\n{b}\n+\n{'I' * len(b)}\n" for i, (_, b) in enumerate(reads))
+    )
+
+    result = _run_paired_guide_count(tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    # both entries name the same sequence pair, so there is one row carrying all reads
+    rows = (tmp_path / "pg.pg_count.txt").read_text().splitlines()
+    assert {r.split("\t")[0]: r.split("\t")[2] for r in rows[1:]} == {"sg1_sg2a": "5"}
+
+    assert "resolve to the same pair" in result.stderr
+    assert "sg1_dup" in result.stderr and "sg2a_dup" in result.stderr
+
+
+def test_pg_pair_only_does_not_remap_ids_that_survive_loading(tmp_path):
+    """An ID re-admitted under a different sequence must not be aliased away.
+
+    The library loader guards duplicate IDs against what it has already loaded,
+    so an ID dropped for duplicating an earlier sequence can be accepted later
+    under a sequence of its own. It then holds a stale entry in the dropped map,
+    and resolving pair-file IDs through that map unconditionally would redirect a
+    perfectly valid ID to an unrelated representative -- allowing the wrong
+    sequence pair and filtering the intended one. Found by review of PR #31.
+    """
+    shared = "ACGTACGTACGTACGTACGT"   # claimed by sgA first
+    own = "TTTTAAAACCCCGGGGTTTT"      # sgX's own sequence, admitted later
+    other = "AACCGGTTAACCGGTTAACC"
+    guide2 = "TGCATGCATGCATGCATGCA"
+
+    (tmp_path / "lib1.txt").write_text(
+        "sgRNA\tsequence\tgene\n"
+        f"sgA\t{shared}\tGENE1\n"
+        f"sgX\t{shared}\tGENE1\n"   # dropped here: sequence already used by sgA
+        f"sgX\t{own}\tGENE2\n"      # but re-admitted here, with a sequence of its own
+        f"sgB\t{other}\tGENE3\n"
+    )
+    (tmp_path / "lib2.txt").write_text(
+        "sgRNA\tsequence\tgene\n"
+        f"sg2\t{guide2}\tGENE4\n"
+    )
+    (tmp_path / "pairs.txt").write_text(
+        "guide1\tguide2\n"
+        "sgX\tsg2\n"
+    )
+    reads = 4
+    (tmp_path / "r1.fastq").write_text(
+        "".join(f"@r{i}\n{own}\n+\n{'I' * len(own)}\n" for i in range(reads))
+    )
+    (tmp_path / "r2.fastq").write_text(
+        "".join(f"@r{i}\n{guide2}\n+\n{'I' * len(guide2)}\n" for i in range(reads))
+    )
+
+    result = _run_paired_guide_count(tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    rows = (tmp_path / "pg.pg_count.txt").read_text().splitlines()
+    counts = {r.split("\t")[0]: r.split("\t")[2] for r in rows[1:]}
+
+    # sgX is a real, loaded sgRNA: its pair must be allowed under its own name
+    assert counts == {"sgX_sg2": "4"}
+
+
+def test_ambiguous_duplicate_id_is_left_unresolved(tmp_path, caplog):
+    """An ID that names two different duplicated sequences cannot be aliased.
+
+    Each duplicate-sequence row overwrote the ID's entry in the dropped map, so
+    the ID resolved to whichever representative happened to come last -- making
+    which sequence pair passes --pg-pair-only depend on library row order. Such
+    an ID is genuinely ambiguous: leave it unresolved and say so. Found by
+    review of PR #31.
+    """
+    import logging
+
+    from mageck2.mageckCount import mageckcount_checklists
+
+    seq_s = "ACGTACGTACGTACGTACGT"
+    seq_t = "TGCATGCATGCATGCATGCA"
+    header = "sgRNA\tsequence\tgene\n"
+    claimed = f"sgA\t{seq_s}\tGENE1\nsgB\t{seq_t}\tGENE2\n"
+
+    # sgX duplicates seq_s and seq_t, each already represented by an earlier row
+    one_order = tmp_path / "lib_sx_st.txt"
+    one_order.write_text(header + claimed + f"sgX\t{seq_s}\tGENE1\nsgX\t{seq_t}\tGENE2\n")
+    other_order = tmp_path / "lib_st_sx.txt"
+    other_order.write_text(header + claimed + f"sgX\t{seq_t}\tGENE2\nsgX\t{seq_s}\tGENE1\n")
+
+    with caplog.at_level(logging.WARNING):
+        for lib in (one_order, other_order):
+            dropped = {}
+            genedict = mageckcount_checklists(str(lib), False, dropped=dropped)
+
+            assert "sgX" not in genedict     # neither row was loaded
+            assert "sgX" not in dropped      # and it resolves to neither sgA nor sgB
+
+    ambiguity = [r.getMessage() for r in caplog.records if "sgX" in r.getMessage()]
+    assert len(ambiguity) == 2               # reported for each library, not silent
+    assert "sgA" in ambiguity[0] and "sgB" in ambiguity[0]

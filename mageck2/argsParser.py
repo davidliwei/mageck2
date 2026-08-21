@@ -76,7 +76,7 @@ def arg_count(subparser):
   cnt_pggroup.add_argument('--pg-start-2',type=int,default=-1,help='The relative start position of the second guide, measured from the first nucleotide of the second read, when the second guide is on the second read (--pairguide secondpair). For example, for a 20bp second guide at the very start of read 2, set --pg-start-2 to 0 and --pg-end-2 to 20.')
   cnt_pggroup.add_argument('--pg-end-2',type=int,default=-1,help='The relative end position of the second guide, measured from the first nucleotide of the second read, when the second guide is on the second read (--pairguide secondpair).')
   cnt_pggroup.add_argument('--pg-min-read',type=int,default=3,help='Only report paired-guides whose total reads in all samples no less than this number. Setting to higher numbers to avoid reporting a large number of records with very few reads. Default 3.')
-  cnt_pggroup.add_argument('--pg-pair-only',help='Only report paired-guides whose combination is listed in the file designated by --pg-pair-only. Each line in this file should has the format "sgid_1 sgid_2", where sgid_1 and sgid_2 are sgRNA IDs from --list-seq and --list-seq-2, respectively.')
+  cnt_pggroup.add_argument('--pg-pair-only',help='Only report paired-guides whose combination is listed in the file designated by --pg-pair-only. Each line in this file should has the format "sgid_1 sgid_2", where sgid_1 and sgid_2 are sgRNA IDs from --list-seq and --list-seq-2, respectively. IDs that were dropped from a library for duplicating an earlier sgRNA sequence are resolved to the sgRNA that represents that sequence, so a pair file written against the original library nomenclature does not need to be rewritten.')
   
 def arg_test(subparser):
   """
