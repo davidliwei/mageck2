@@ -76,7 +76,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entries resolve onto the same pair -- possible when both libraries contain
   duplicated sequences -- their reads are indistinguishable by sequence and are
   reported as one row, which is now warned about rather than silently summed.
-  See issue #28.
+  An sgRNA ID whose first row was dropped as a duplicate but which a later row
+  re-admits under a sequence of its own is a real sgRNA, not an alias, and is no
+  longer remapped. See issue #28.
 - `count` no longer crashes with `TypeError` when writing the pair-level unmapped
   file for a run where some first reads matched no guide. In `--pairguide secondpair`
   mode the second-read window is recorded even when the first read matched nothing,

@@ -952,3 +952,51 @@ def test_pg_pair_only_reports_colliding_resolved_pairs(tmp_path):
 
     assert "resolve to the same pair" in result.stderr
     assert "sg1_dup" in result.stderr and "sg2a_dup" in result.stderr
+
+
+def test_pg_pair_only_does_not_remap_ids_that_survive_loading(tmp_path):
+    """An ID re-admitted under a different sequence must not be aliased away.
+
+    The library loader guards duplicate IDs against what it has already loaded,
+    so an ID dropped for duplicating an earlier sequence can be accepted later
+    under a sequence of its own. It then holds a stale entry in the dropped map,
+    and resolving pair-file IDs through that map unconditionally would redirect a
+    perfectly valid ID to an unrelated representative -- allowing the wrong
+    sequence pair and filtering the intended one. Found by review of PR #31.
+    """
+    shared = "ACGTACGTACGTACGTACGT"   # claimed by sgA first
+    own = "TTTTAAAACCCCGGGGTTTT"      # sgX's own sequence, admitted later
+    other = "AACCGGTTAACCGGTTAACC"
+    guide2 = "TGCATGCATGCATGCATGCA"
+
+    (tmp_path / "lib1.txt").write_text(
+        "sgRNA\tsequence\tgene\n"
+        f"sgA\t{shared}\tGENE1\n"
+        f"sgX\t{shared}\tGENE1\n"   # dropped here: sequence already used by sgA
+        f"sgX\t{own}\tGENE2\n"      # but re-admitted here, with a sequence of its own
+        f"sgB\t{other}\tGENE3\n"
+    )
+    (tmp_path / "lib2.txt").write_text(
+        "sgRNA\tsequence\tgene\n"
+        f"sg2\t{guide2}\tGENE4\n"
+    )
+    (tmp_path / "pairs.txt").write_text(
+        "guide1\tguide2\n"
+        "sgX\tsg2\n"
+    )
+    reads = 4
+    (tmp_path / "r1.fastq").write_text(
+        "".join(f"@r{i}\n{own}\n+\n{'I' * len(own)}\n" for i in range(reads))
+    )
+    (tmp_path / "r2.fastq").write_text(
+        "".join(f"@r{i}\n{guide2}\n+\n{'I' * len(guide2)}\n" for i in range(reads))
+    )
+
+    result = _run_paired_guide_count(tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    rows = (tmp_path / "pg.pg_count.txt").read_text().splitlines()
+    counts = {r.split("\t")[0]: r.split("\t")[2] for r in rows[1:]}
+
+    # sgX is a real, loaded sgRNA: its pair must be allowed under its own name
+    assert counts == {"sgX_sg2": "4"}

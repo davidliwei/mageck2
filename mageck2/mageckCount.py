@@ -372,7 +372,8 @@ def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datast
     pg_dict={}
     nrecord=0
     naliased=0
-    aliases=[] # dropped -> representative, for reporting
+    alias_seen=set() # (given,resolved) pairs already accounted for
+    alias_examples=[] # a handful of 'given -> resolved' strings, for the log line
     pg_origin={} # {(resolved_id_1,resolved_id_2):(given_id_1,given_id_2)}
     for (nl,field) in mageckcount_iter_pg_pair_file(args.pg_pair_only):
       if len(field)<2:
@@ -382,8 +383,10 @@ def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datast
       if sg_1!=field[0] or sg_2!=field[1]:
         naliased+=1
         for (given,resolved) in ((field[0],sg_1),(field[1],sg_2)):
-          if given!=resolved and (given+' -> '+resolved) not in aliases:
-            aliases+=[given+' -> '+resolved]
+          if given!=resolved and (given,resolved) not in alias_seen:
+            alias_seen.add((given,resolved))
+            if len(alias_examples)<5: # the rest are counted, not accumulated
+              alias_examples+=[given+' -> '+resolved]
       if (sg_1,sg_2) in pg_origin:
         given=pg_origin[(sg_1,sg_2)]
         if given!=(field[0],field[1]):
@@ -400,8 +403,8 @@ def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datast
         pg_dict[sg_1][sg_2]=0
     logging.info(str(nrecord)+' records in '+args.pg_pair_only+' loaded.')
     if naliased>0:
-      examples=aliases[:5]
-      if len(aliases)>len(examples):
+      examples=list(alias_examples)
+      if len(alias_seen)>len(examples):
         examples+=['...']
       logging.info(str(naliased)+' of '+str(nrecord)+' records in '+args.pg_pair_only+' name sgRNAs that were '
           +'dropped as duplicate sequences; they are resolved to the representative IDs used for counting: '
@@ -544,6 +547,10 @@ def mageckcount_checklists(filename,reversecomplement,dropped=None):
       continue
     genedict[field[0]]=(sgrnaseq,field[2])
     seqdict[sgrnaseq]=field[0]
+  # an ID whose first row was dropped can still be admitted by a later row that
+  # carries a sequence of its own; it is then a real sgRNA, not an alias
+  for sgid in [k for k in dupmap if k in genedict]:
+    del dupmap[sgid]
   logging.info('Loading '+str(len(genedict))+' predefined sgRNAs.')
   if len(dupmap)>0:
     examples=[k+' -> '+v for (k,v) in list(dupmap.items())[:5]]
