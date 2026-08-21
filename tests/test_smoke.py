@@ -531,3 +531,263 @@ def test_documented_designmat_example_is_valid():
 
     desmat, _rows, _cols = parse_designmat(example.group(1))
     validate_designmat(desmat)  # raises SystemExit if the example is not usable
+
+
+def test_duplicate_sequence_report_names_dropped_ids(tmp_path, caplog):
+    """Library rows dropped for sharing a sequence must be identified.
+
+    ``mageckcount_checklists`` keeps the first row for a given sequence and
+    drops later ones. The report has to say which library it read, which IDs it
+    dropped, and which ID now represents that sequence -- otherwise the user
+    cannot connect the later "not in the first library" warning back to its
+    cause. See issue #27.
+    """
+    import logging
+
+    from mageck2.mageckCount import mageckcount_checklists
+
+    lib = tmp_path / "lib1.txt"
+    lib.write_text(
+        "sgRNA\tsequence\tgene\n"
+        "sg_keep\tACGTACGTACGTACGTACGT\tGENE1\n"
+        "sg_dup\tACGTACGTACGTACGTACGT\tGENE1\n"
+    )
+
+    with caplog.at_level(logging.WARNING):
+        genedict = mageckcount_checklists(str(lib), False)
+
+    # the later row is dropped, as before
+    assert "sg_keep" in genedict
+    assert "sg_dup" not in genedict
+
+    # ... but now the user is told which file, which ID, and its replacement
+    assert "lib1.txt" in caplog.text
+    assert "sg_dup" in caplog.text
+    assert "sg_keep" in caplog.text
+
+
+def test_clean_library_reports_no_duplicate_warning(tmp_path, caplog):
+    """A library with no duplicated sequences must not warn.
+
+    The report used to fire at WARNING level unconditionally, announcing
+    "There are 0 sgRNAs with duplicated sequences." on every clean run, which
+    trains users to ignore it. See issue #27.
+    """
+    import logging
+
+    from mageck2.mageckCount import mageckcount_checklists
+
+    lib = tmp_path / "clean.txt"
+    lib.write_text(
+        "sgRNA\tsequence\tgene\n"
+        "sg1\tACGTACGTACGTACGTACGT\tGENE1\n"
+        "sg2\tTGCATGCATGCATGCATGCA\tGENE2\n"
+    )
+
+    with caplog.at_level(logging.WARNING):
+        genedict = mageckcount_checklists(str(lib), False)
+
+    assert len(genedict) == 2
+    assert caplog.text == ""
+
+
+def test_pg_pair_only_warning_explains_duplicate_drop(tmp_path, caplog):
+    """The --pg-pair-only warning must name the cause and the remedy.
+
+    "sgRNA ID sg_dup not in the first library" is true but unactionable: the ID
+    is missing because its sequence duplicates an earlier row, and the fix is to
+    use the surviving representative ID. See issue #27.
+    """
+    import logging
+    from types import SimpleNamespace
+
+    from mageck2.mageckCount import mageckcount_checkargs
+
+    lib1 = tmp_path / "lib1.txt"
+    lib1.write_text(
+        "sgRNA\tsequence\tgene\n"
+        "sg_keep\tACGTACGTACGTACGTACGT\tGENE1\n"
+        "sg_dup\tACGTACGTACGTACGTACGT\tGENE1\n"
+    )
+    lib2 = tmp_path / "lib2.txt"
+    lib2.write_text(
+        "sgRNA\tsequence\tgene\n"
+        "sg2\tTGCATGCATGCATGCATGCA\tGENE2\n"
+    )
+    pair_file = tmp_path / "pairs.txt"
+    pair_file.write_text(
+        "guide1\tguide2\n"
+        "sg_dup\tsg2\n"
+    )
+
+    args = SimpleNamespace(
+        fastq=["sample_R1.fastq"],
+        fastq_2=["sample_R2.fastq"],
+        list_seq=str(lib1),
+        list_seq_2=str(lib2),
+        reverse_complement=False,
+        reverse_complement_2=False,
+        sample_label="",
+        pg_pair_only=str(pair_file),
+        count_table=None,
+        day0_label=None,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        mageckcount_checkargs(args)
+
+    # Isolate the pair-file warning from the library-loading one, which also
+    # mentions both IDs.
+    pair_messages = [r.getMessage() for r in caplog.records if "pairs.txt" in r.getMessage()]
+    assert len(pair_messages) == 1
+    message = pair_messages[0]
+
+    assert "sg_dup" in message
+    assert "sg_keep" in message      # the representative to use instead
+    assert "duplicate" in message.lower()
+
+
+def _write_paired_guide_fixture(tmp_path, unmatched_first_reads=0, unmatched_second_reads=0):
+    """A two-construct dual-guide library, one construct allowed by the pair file."""
+    guide1 = "ACGTACGTACGTACGTACGT"
+    guide1b = "AACCGGTTAACCGGTTAACC"  # in the library, never sequenced
+    guide2a = "TGCATGCATGCATGCATGCA"
+    guide2b = "GGGGCCCCAAAATTTTGGGG"
+
+    (tmp_path / "lib1.txt").write_text(
+        "sgRNA\tsequence\tgene\n"
+        f"sg1\t{guide1}\tGENE1\n"
+        f"sg1b\t{guide1b}\tGENE1\n"
+    )
+    (tmp_path / "lib2.txt").write_text(
+        "sgRNA\tsequence\tgene\n"
+        f"sg2a\t{guide2a}\tGENE2\n"
+        f"sg2b\t{guide2b}\tGENE3\n"
+    )
+    # only sg1+sg2a is a real construct; sg1+sg2b is a recombinant to be filtered
+    (tmp_path / "pairs.txt").write_text(
+        "guide1\tguide2\n"
+        "sg1\tsg2a\n"
+    )
+
+    def fastq(reads):
+        return "".join(
+            f"@r{i}\n{seq}\n+\n{'I' * len(seq)}\n" for i, seq in enumerate(reads)
+        )
+
+    r1 = [guide1] * 7
+    r2 = [guide2a] * 4 + [guide2b] * 3
+    # read pairs whose first guide matches nothing in the library
+    r1 += ["TTTTTTTTTTTTTTTTTTTT"] * unmatched_first_reads
+    r2 += [guide2a] * unmatched_first_reads
+    # read pairs whose second guide matches nothing in the second library
+    r1 += [guide1] * unmatched_second_reads
+    r2 += ["CCCCCCCCCCCCCCCCCCCC"] * unmatched_second_reads
+    (tmp_path / "r1.fastq").write_text(fastq(r1))
+    (tmp_path / "r2.fastq").write_text(fastq(r2))
+
+
+def _run_paired_guide_count(tmp_path, extra_args=()):
+    return subprocess.run(
+        [
+            "mageck2", "count",
+            "-l", "lib1.txt",
+            "--list-seq-2", "lib2.txt",
+            "--pairguide", "secondpair",
+            "--pg-start-2", "0",
+            "--pg-end-2", "20",
+            "--pg-pair-only", "pairs.txt",
+            "--trim-5", "0",
+            "--sample-label", "s1",
+            "--fastq", "r1.fastq",
+            "--fastq-2", "r2.fastq",
+            "-n", "pg",
+            *extra_args,
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_paired_guide_count_end_to_end(tmp_path):
+    """Baseline: the allowed pair is counted, the filtered pair is not."""
+    _write_paired_guide_fixture(tmp_path)
+    result = _run_paired_guide_count(tmp_path)
+    assert result.returncode == 0, result.stderr
+
+    rows = (tmp_path / "pg.pg_count.txt").read_text().splitlines()
+    assert rows[0].split("\t")[:2] == ["sgRNA1_sgRNA2", "Gene1_Gene2"]
+
+    counts = {r.split("\t")[0]: r.split("\t")[2] for r in rows[1:]}
+    assert counts == {"sg1_sg2a": "4"}
+
+
+def test_pg_unmapped_file_records_filtered_pairs(tmp_path):
+    """Pairs excluded from pg_count.txt must be recorded, not silently dropped.
+
+    mageckcount_printpgdict is currently called with ounmappedfile=None, so a
+    pair rejected by --pg-pair-only (or whose second guide never matched) leaves
+    no trace anywhere, and the user cannot tell a filtered pair from one that
+    was never sequenced. See issue #27.
+    """
+    _write_paired_guide_fixture(tmp_path)
+    result = _run_paired_guide_count(tmp_path, extra_args=["--unmapped-to-file"])
+    assert result.returncode == 0, result.stderr
+
+    pg_unmapped = tmp_path / "pg.pg_unmapped.txt"
+    assert pg_unmapped.exists(), "no pair-level unmapped file was written"
+
+    rows = pg_unmapped.read_text().splitlines()
+    filtered = {r.split("\t")[0]: r.split("\t")[2] for r in rows[1:]}
+    assert filtered == {"sg1_sg2b": "3"}
+
+
+def test_pg_unmapped_file_tolerates_unmatched_first_reads(tmp_path):
+    """Read pairs whose first guide never matched must not break the writer.
+
+    In secondpair mode the second-read window is recorded even when the first
+    read matched nothing, under a None key. That key was previously invisible
+    because the pair-level unmapped file was never written; once it is, the row
+    label None + '_' + seq raises TypeError. Those pairs identify no guide 1 and
+    are already accounted for in the read-level unmapped file, so they belong in
+    neither pair-level table. See issue #27.
+    """
+    _write_paired_guide_fixture(tmp_path, unmatched_first_reads=2)
+    result = _run_paired_guide_count(tmp_path, extra_args=["--unmapped-to-file"])
+    assert result.returncode == 0, result.stderr
+
+    rows = (tmp_path / "pg.pg_unmapped.txt").read_text().splitlines()
+    filtered = {r.split("\t")[0]: r.split("\t")[2] for r in rows[1:]}
+    assert filtered == {"sg1_sg2b": "3"}
+
+    # the unmatched first reads are still reported, at the read level
+    read_unmapped = (tmp_path / "pg.unmapped.txt").read_text()
+    assert "TTTTTTTTTTTTTTTTTTTT" in read_unmapped
+
+
+def test_pg_unmapped_rows_match_their_header(tmp_path):
+    """Every row of pg_unmapped.txt must mean what the header says.
+
+    A pair whose second guide matched no entry in --list-seq-2 has no second ID
+    and no second gene, but the row was serialized as sequences under an
+    "sgRNA1_sgRNA2 / Gene1_Gene2" header: column 1 held two raw sequences and
+    column 2 held an sgRNA ID joined to a sequence. Anything parsing this file
+    reads a 20-mer where an ID belongs. Report the known first guide by ID and
+    gene, keep the unmatched second sequence as its only available identifier,
+    and mark the missing gene explicitly.
+    """
+    _write_paired_guide_fixture(tmp_path, unmatched_second_reads=2)
+    result = _run_paired_guide_count(tmp_path, extra_args=["--unmapped-to-file"])
+    assert result.returncode == 0, result.stderr
+
+    rows = [r.split("\t") for r in (tmp_path / "pg.pg_unmapped.txt").read_text().splitlines()]
+    assert rows[0][:2] == ["sgRNA1_sgRNA2", "Gene1_Gene2"]
+
+    unmapped = {r[0]: (r[1], r[2]) for r in rows[1:]}
+
+    # excluded by --pg-pair-only: both guides are known, so both are named
+    assert unmapped["sg1_sg2b"] == ("GENE1_GENE3", "3")
+
+    # second guide unknown: first guide by ID and gene, second by sequence
+    assert unmapped["sg1_CCCCCCCCCCCCCCCCCCCC"] == ("GENE1_None", "2")

@@ -35,6 +35,19 @@ def mageckcount_is_pg_pair_header(field):
   )
 
 
+def mageckcount_missing_pgid_reason(sgid,which,dropped):
+  '''
+  Explain why an sgRNA ID from --pg-pair-only is absent from a library.
+
+  A dropped duplicate is the common case and has a remedy, so name it; anything
+  else is a genuine mismatch between the pair file and the library.
+  '''
+  if sgid in dropped:
+    return ('sgRNA ID '+sgid+' was dropped from the '+which+' library because its sequence is already '
+        +'used by '+dropped[sgid]+' (a duplicate sequence). This pair will be excluded from the '
+        +'paired-guide counts; use '+dropped[sgid]+' instead.')
+  return 'sgRNA ID '+sgid+' not in the '+which+' library.'
+
 def mageckcount_iter_pg_pair_file(filename):
   # Match the count-table delimiter convention (getcounttablefromfile /
   # read_gene_from_file): comma for .csv files, tab otherwise. A generic
@@ -85,12 +98,14 @@ def mageckcount_checkargs(args):
   genedict={}
   genenames={} # store possible gene names
   genedict2=None
+  dropped={} # {dropped_sgrnaid:representative_sgrnaid} in the first library
+  dropped2={} # the same, for the second library
   if args.list_seq is not None:
-    genedict=mageckcount_checklists(args.list_seq,args.reverse_complement) # sgid:(seq,gene)
+    genedict=mageckcount_checklists(args.list_seq,args.reverse_complement,dropped=dropped) # sgid:(seq,gene)
     for (k,v) in genedict.items():
       genenames[v[1].upper()]=0
   if args.list_seq_2 is not None:
-    genedict2=mageckcount_checklists(args.list_seq_2,args.reverse_complement_2) # sgid:(seq,gene)
+    genedict2=mageckcount_checklists(args.list_seq_2,args.reverse_complement_2,dropped=dropped2) # sgid:(seq,gene)
     # check pg-pair-only file
     if args.pg_pair_only != None:
       for (nl,field) in mageckcount_iter_pg_pair_file(args.pg_pair_only):
@@ -98,9 +113,11 @@ def mageckcount_checkargs(args):
           logging.error('Warning in line '+str(nl)+' of '+args.pg_pair_only+': two sgRNA ids are expected. Skipping this line.')
           continue
         if field[0] not in genedict:
-          logging.warning('Warning in the line '+str(nl)+' of '+args.pg_pair_only+': sgRNA ID '+field[0]+' not in the first library.')
+          logging.warning('Warning in the line '+str(nl)+' of '+args.pg_pair_only+': '
+              +mageckcount_missing_pgid_reason(field[0],'first',dropped))
         if field[1] not in genedict2:
-          logging.warning('Warning in the line '+str(nl)+' of '+args.pg_pair_only+': sgRNA ID '+field[1]+' not in the second library.')
+          logging.warning('Warning in the line '+str(nl)+' of '+args.pg_pair_only+': '
+              +mageckcount_missing_pgid_reason(field[1],'second',dropped2))
 
   # check count table
   if args.count_table != None:
@@ -360,6 +377,8 @@ def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datast
     logging.info(str(nrecord)+' records in '+args.pg_pair_only+' loaded.')
   # print header
   print('sgRNA1_sgRNA2'+sep+'Gene1_Gene2'+sep+sep.join(slabel),file=ofile)
+  if ounmappedfile != None:
+    print('sgRNA1_sgRNA2'+sep+'Gene1_Gene2'+sep+sep.join(slabel),file=ounmappedfile)
   # print items
   if len(sgdict)==0:
     for (k,umidict) in dict0.items():
@@ -368,6 +387,8 @@ def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datast
   else:
     for (k,umidict) in dict0.items():
       # k is the seq of sgRNA1
+      if k is None: # the first read matched no guide; already in the read-level unmapped file
+        continue
       if k not in sgdict: # only print those in the genedict
         if ounmappedfile != None:
           for (k2,v) in umidict.items():
@@ -377,7 +398,9 @@ def mageckcount_printpgdict(dict0,args,ofile,ounmappedfile,sgdict,sgdict2,datast
       for (k2,v) in umidict.items():
         if k2 not in sgdict2:
           if ounmappedfile != None:
-            print(sep.join([k+'_'+k2,sx[0]+'_'+k2]+[str(x) for x in v]),file=ounmappedfile)
+            # the second guide has no ID and no gene: identify it by sequence, and
+            # keep the columns meaning what the header says they mean
+            print(sep.join([sx[0]+'_'+k2,sx[1]+'_None']+[str(x) for x in v]),file=ounmappedfile)
         else:
           sx2=sgdict2[k2]
           totalr=sum(v)
@@ -440,7 +463,7 @@ def mageck_printdict(dict0,args,sgdict,sampledict,sampleids):
 
 
 
-def mageckcount_checklists(filename,reversecomplement):
+def mageckcount_checklists(filename,reversecomplement,dropped=None):
   """
   Read sgRNA library file
   Parameters:
@@ -448,6 +471,9 @@ def mageckcount_checklists(filename,reversecomplement):
         The name to be opened
     reversecomplement
         Whether guides should be reversecomplemented
+    dropped
+        An optional dict, filled with {dropped_sgrnaid: representative_sgrnaid}
+        for rows skipped because their sequence is already used by an earlier row
   Return value:
     genedict
         The {sgRNAid:(seq,geneid)} object
@@ -461,7 +487,7 @@ def mageckcount_checklists(filename,reversecomplement):
     hascsv=True
   n=0
   seqdict={}
-  ndup=0
+  dupmap={} # {dropped_sgrnaid: representative_sgrnaid}
   for line in open(filename):
     if hascsv:
       field=line.strip().split(',')
@@ -483,13 +509,19 @@ def mageckcount_checklists(filename,reversecomplement):
     if  reversecomplement:
       sgrnaseq=mageckcount_revcomp(sgrnaseq)
     if sgrnaseq in seqdict:
-      # logging.warning('Duplicated sgRNA sequence '+field[1]+' in line '+str(n)+'. Skip this record.')
-      ndup+=1
+      dupmap[field[0]]=seqdict[sgrnaseq]
       continue
     genedict[field[0]]=(sgrnaseq,field[2])
-    seqdict[sgrnaseq]=1
+    seqdict[sgrnaseq]=field[0]
   logging.info('Loading '+str(len(genedict))+' predefined sgRNAs.')
-  logging.warning('There are '+str(ndup)+' sgRNAs with duplicated sequences.')
+  if len(dupmap)>0:
+    examples=[k+' -> '+v for (k,v) in list(dupmap.items())[:5]]
+    if len(dupmap)>len(examples):
+      examples+=['...']
+    logging.warning(str(len(dupmap))+' sgRNAs in '+filename+' share a sequence with an earlier sgRNA and were dropped. '
+        +'Reads carrying those sequences are counted under the earlier (representative) ID: '+', '.join(examples))
+  if dropped is not None:
+    dropped.update(dupmap)
   return genedict
 
 def mageckcount_processfastq(args,genedict,sgdict,sgdict2=None):
@@ -573,8 +605,14 @@ def mageckcount_processfastq(args,genedict,sgdict,sgdict2=None):
   if args.pairguide != 'none':
     # filter umis; only keep umis that are within the library
     ofilel=open(args.output_prefix+'.pg_count.txt','w')
-    mageckcount_printpgdict(alldict_umi,args,ofilel,None,sgdict,sgdict2,datastat)
+    if hasattr(args,'unmapped_to_file') and args.unmapped_to_file:
+      opgunmappedfilel=open(args.output_prefix+'.pg_unmapped.txt','w')
+    else:
+      opgunmappedfilel=None
+    mageckcount_printpgdict(alldict_umi,args,ofilel,opgunmappedfilel,sgdict,sgdict2,datastat)
     ofilel.close()
+    if opgunmappedfilel != None:
+      opgunmappedfilel.close()
     # restore umi parameters
     args.umi='none'
   # write umi counts
