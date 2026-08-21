@@ -1000,3 +1000,40 @@ def test_pg_pair_only_does_not_remap_ids_that_survive_loading(tmp_path):
 
     # sgX is a real, loaded sgRNA: its pair must be allowed under its own name
     assert counts == {"sgX_sg2": "4"}
+
+
+def test_ambiguous_duplicate_id_is_left_unresolved(tmp_path, caplog):
+    """An ID that names two different duplicated sequences cannot be aliased.
+
+    Each duplicate-sequence row overwrote the ID's entry in the dropped map, so
+    the ID resolved to whichever representative happened to come last -- making
+    which sequence pair passes --pg-pair-only depend on library row order. Such
+    an ID is genuinely ambiguous: leave it unresolved and say so. Found by
+    review of PR #31.
+    """
+    import logging
+
+    from mageck2.mageckCount import mageckcount_checklists
+
+    seq_s = "ACGTACGTACGTACGTACGT"
+    seq_t = "TGCATGCATGCATGCATGCA"
+    header = "sgRNA\tsequence\tgene\n"
+    claimed = f"sgA\t{seq_s}\tGENE1\nsgB\t{seq_t}\tGENE2\n"
+
+    # sgX duplicates seq_s and seq_t, each already represented by an earlier row
+    one_order = tmp_path / "lib_sx_st.txt"
+    one_order.write_text(header + claimed + f"sgX\t{seq_s}\tGENE1\nsgX\t{seq_t}\tGENE2\n")
+    other_order = tmp_path / "lib_st_sx.txt"
+    other_order.write_text(header + claimed + f"sgX\t{seq_t}\tGENE2\nsgX\t{seq_s}\tGENE1\n")
+
+    with caplog.at_level(logging.WARNING):
+        for lib in (one_order, other_order):
+            dropped = {}
+            genedict = mageckcount_checklists(str(lib), False, dropped=dropped)
+
+            assert "sgX" not in genedict     # neither row was loaded
+            assert "sgX" not in dropped      # and it resolves to neither sgA nor sgB
+
+    ambiguity = [r.getMessage() for r in caplog.records if "sgX" in r.getMessage()]
+    assert len(ambiguity) == 2               # reported for each library, not silent
+    assert "sgA" in ambiguity[0] and "sgB" in ambiguity[0]

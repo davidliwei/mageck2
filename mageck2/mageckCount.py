@@ -522,6 +522,7 @@ def mageckcount_checklists(filename,reversecomplement,dropped=None):
   n=0
   seqdict={}
   dupmap={} # {dropped_sgrnaid: representative_sgrnaid}
+  ambiguous={} # {dropped_sgrnaid: set of representatives}, for ids naming more than one
   for line in open(filename):
     if hascsv:
       field=line.strip().split(',')
@@ -543,6 +544,9 @@ def mageckcount_checklists(filename,reversecomplement,dropped=None):
     if  reversecomplement:
       sgrnaseq=mageckcount_revcomp(sgrnaseq)
     if sgrnaseq in seqdict:
+      if field[0] in dupmap and dupmap[field[0]]!=seqdict[sgrnaseq]:
+        # the same id names two different duplicated sequences
+        ambiguous.setdefault(field[0],set()).update([dupmap[field[0]],seqdict[sgrnaseq]])
       dupmap[field[0]]=seqdict[sgrnaseq]
       continue
     genedict[field[0]]=(sgrnaseq,field[2])
@@ -551,6 +555,18 @@ def mageckcount_checklists(filename,reversecomplement,dropped=None):
   # carries a sequence of its own; it is then a real sgRNA, not an alias
   for sgid in [k for k in dupmap if k in genedict]:
     del dupmap[sgid]
+  # an ID naming more than one duplicated sequence has no single representative.
+  # Picking one would make the choice depend on row order, so leave it unresolved
+  ambiguous={k:v for (k,v) in ambiguous.items() if k in dupmap}
+  for sgid in ambiguous:
+    del dupmap[sgid]
+  if len(ambiguous)>0:
+    examples=[k+' -> '+'/'.join(sorted(v)) for (k,v) in sorted(ambiguous.items())[:5]]
+    if len(ambiguous)>len(examples):
+      examples+=['...']
+    logging.warning(str(len(ambiguous))+' sgRNA IDs in '+filename+' each name more than one duplicated '
+        +'sequence, so no single sgRNA represents them. They are left unresolved, and pairs naming them '
+        +'will not match --pg-pair-only: '+', '.join(examples))
   logging.info('Loading '+str(len(genedict))+' predefined sgRNAs.')
   if len(dupmap)>0:
     examples=[k+' -> '+v for (k,v) in list(dupmap.items())[:5]]

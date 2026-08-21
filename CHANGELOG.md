@@ -78,7 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reported as one row, which is now warned about rather than silently summed.
   An sgRNA ID whose first row was dropped as a duplicate but which a later row
   re-admits under a sequence of its own is a real sgRNA, not an alias, and is no
-  longer remapped. See issue #28.
+  longer remapped. An ID that names more than one duplicated sequence has no
+  single representative and is left unresolved with a warning, rather than
+  resolved to whichever representative the library happened to list last.
+  See issue #28.
 - `count` no longer crashes with `TypeError` when writing the pair-level unmapped
   file for a run where some first reads matched no guide. In `--pairguide secondpair`
   mode the second-read window is recorded even when the first read matched nothing,
