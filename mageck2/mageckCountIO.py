@@ -52,6 +52,9 @@ def mageckcount_search_variable_region(seqlist):
   var_start=-1
   var_end=-1
   #print(count_freq)
+  if len(count_freq)==0:
+    # nothing follows the guide on these reads, so there is no region to search
+    return (var_start,var_end)
   logging.info('--count-freq data for UMI search (A/T/G/C):')
   for x in range(max(count_freq.keys())):
     logging.info('  '+str(x)+'\t'+'/'.join([str(s) for s in count_freq[x]]))
@@ -363,7 +366,7 @@ def mageckcount_determine_umi_location(args,pairedfile,genedict,remainingseq_lis
       logging.info('Search for UMI in the second read...')
       (candidate_trim5_paired, remainingseq_list_pair) = mageckcount_trim5_auto(pairedfile, args, genedict, revcomp=True,is_second_pair=True, no_search=True)
       (umi_start_2,umi_end_2)=mageckcount_search_variable_region(remainingseq_list_pair)
-      if umi_start_2 >= 0 or umi_end_2 >= 0:
+      if umi_start_2 >= 0 and umi_end_2 >= 0:
         logging.info('UMI found in the second read. Position: '+str(umi_start_2)+'-'+str(umi_end_2))
         args.umi_start_2=umi_start_2
         args.umi_end_2=umi_end_2
@@ -424,24 +427,6 @@ def mageckcount_processonefile(filename,args,ctab,ctab_umi,genedict,datastat,pai
       # automatically search for UMIs
       revised_umi_auto=True# a marker to retore args.umi later
       mageckcount_determine_umi_location(args,pairedfile,genedict,remainingseq_list)
-  elif args.pairguide != 'none':
-    if args.pairguide=='auto':
-      mageckcount_determine_umi_location(args,pairedfile,genedict,remainingseq_list)
-      # copy the configurations from umi to pg, and retore the configurations of umi
-      if args.umi=='firstpair':
-        args.pg_start=args.umi_start
-        args.pg_end=args.umi_end
-        args.pairguide='firstpair'
-        args.umi='none'
-        args.umi_start=-1
-        args.umi_end=-1
-      elif args.umi=='secondpair':
-        args.pg_start_2=args.umi_start_2
-        args.pg_end_2=args.umi_end_2
-        args.pairguide='secondpair'
-        args.umi='none'
-        args.umi_start_2=-1
-        args.umi_end_2=-1
   else:
     if pairedfile != None:
       (candidate_trim5_paired, remainingseq_list_pair) = mageckcount_trim5_auto(pairedfile, args, genedict, revcomp=True,is_second_pair=True)
@@ -498,8 +483,6 @@ def mageckcount_processonefile(filename,args,ctab,ctab_umi,genedict,datastat,pai
       # now search for UMIs on the second pair
       if args.umi=='secondpair':
         # extract UMIs from the second pair
-        if args.umi_start_2 == -1 or args.umi_end_2 == -1:
-          logging.error('Error: umi-start and umi-end has to be greater than zero')
         umiseq = fseq1[args.umi_start_2:args.umi_end_2]
         if matched_seq not in ctab_umi:
           ctab_umi[matched_seq]={}

@@ -1037,3 +1037,143 @@ def test_ambiguous_duplicate_id_is_left_unresolved(tmp_path, caplog):
     ambiguity = [r.getMessage() for r in caplog.records if "sgX" in r.getMessage()]
     assert len(ambiguity) == 2               # reported for each library, not silent
     assert "sgA" in ambiguity[0] and "sgB" in ambiguity[0]
+
+
+def _write_umi_fixture(tmp_path, umi_on="second", trailing=True, nread=200):
+    """A single-guide library plus reads carrying a random 8bp UMI.
+
+    umi_on selects which read holds the UMI; trailing=False makes read 1 end
+    exactly at the guide, so nothing follows it to search.
+    """
+    import random
+
+    rng = random.Random(11)
+    const = "CTTGTGGAAAGGACGAAACA"
+    guides = [
+        ("sg%d" % i, "".join(rng.choice("ACGT") for _ in range(20)), "GENE%d" % (i % 3))
+        for i in range(1, 9)
+    ]
+    (tmp_path / "lib1.txt").write_text(
+        "sgRNA\tsequence\tgene\n" + "".join(f"{a}\t{b}\t{c}\n" for a, b, c in guides)
+    )
+    r1, r2 = [], []
+    for i in range(nread):
+        guide = guides[i % len(guides)][1]
+        umi = "".join(rng.choice("ACGT") for _ in range(8))
+        if umi_on == "first":
+            r1.append(guide + umi)
+            # variable read 2: the search finds a start here but never an end,
+            # which is the (0, -1) failure value the guard has to reject
+            r2.append("".join(rng.choice("ACGT") for _ in range(20)))
+        else:
+            r1.append(guide + (const if trailing else ""))
+            r2.append(umi + const)
+
+    def fastq(reads):
+        return "".join(f"@r{i}\n{s}\n+\n{'I' * len(s)}\n" for i, s in enumerate(reads))
+
+    (tmp_path / "r1.fastq").write_text(fastq(r1))
+    (tmp_path / "r2.fastq").write_text(fastq(r2))
+
+
+def _run_count(tmp_path, extra):
+    return subprocess.run(
+        ["mageck2", "count", "-l", "lib1.txt", "--trim-5", "0", "--sample-label", "s1",
+         "--fastq", "r1.fastq", "--fastq-2", "r2.fastq", "-n", "out", *extra],
+        cwd=tmp_path, capture_output=True, text=True,
+    )
+
+
+def test_pairguide_auto_is_rejected(tmp_path):
+    """--pairguide auto never located a second guide, so it is no longer offered.
+
+    The variable-region search it used finds a column run whose base composition
+    looks random. That describes a UMI, not a guide drawn from a fixed library,
+    so the window it returned was truncated or empty and pg_count.txt came out
+    header-only with a zero exit code. Reject the choice outright rather than
+    keep a mode that cannot succeed. See issue #29.
+    """
+    _write_paired_guide_fixture(tmp_path)
+    result = _run_paired_guide_count(tmp_path, extra_args=["--pairguide", "auto"])
+
+    assert result.returncode != 0
+    assert "auto" in result.stderr
+    assert "invalid choice" in result.stderr
+
+
+def test_pairguide_secondpair_requires_its_window(tmp_path):
+    """Omitting --pg-start-2/--pg-end-2 must stop the run, once and up front.
+
+    The window was checked inside the per-read loop, which logged an error for
+    every read -- one line per read on a real FASTQ -- then carried on to slice
+    an empty string and exit 0 with a header-only pg_count.txt. See issue #29.
+    """
+    _write_paired_guide_fixture(tmp_path)
+    result = subprocess.run(
+        ["mageck2", "count", "-l", "lib1.txt", "--list-seq-2", "lib2.txt",
+         "--pairguide", "secondpair", "--trim-5", "0", "--sample-label", "s1",
+         "--fastq", "r1.fastq", "--fastq-2", "r2.fastq", "-n", "pg"],
+        cwd=tmp_path, capture_output=True, text=True,
+    )
+
+    assert result.returncode != 0
+    assert "--pg-start-2" in result.stderr and "--pg-end-2" in result.stderr
+    # reported once, not once per read
+    assert len([l for l in result.stderr.splitlines() if "ERROR" in l]) == 1
+    assert not (tmp_path / "pg.pg_count.txt").exists()
+
+
+def test_pairguide_firstpair_requires_its_window(tmp_path):
+    """Same guard for the first-read layout, which names different options."""
+    _write_paired_guide_fixture(tmp_path)
+    result = subprocess.run(
+        ["mageck2", "count", "-l", "lib1.txt", "--list-seq-2", "lib2.txt",
+         "--pairguide", "firstpair", "--trim-5", "0", "--sample-label", "s1",
+         "--fastq", "r1.fastq", "--fastq-2", "r2.fastq", "-n", "pg"],
+        cwd=tmp_path, capture_output=True, text=True,
+    )
+
+    assert result.returncode != 0
+    assert "--pg-start" in result.stderr and "--pg-end" in result.stderr
+    assert len([l for l in result.stderr.splitlines() if "ERROR" in l]) == 1
+
+
+def test_umi_secondpair_requires_its_window(tmp_path):
+    """The same missing-window flood reaches --umi, which shares the code path."""
+    _write_umi_fixture(tmp_path)
+    result = _run_count(tmp_path, ["--umi", "secondpair"])
+
+    assert result.returncode != 0
+    assert "--umi-start-2" in result.stderr and "--umi-end-2" in result.stderr
+    assert len([l for l in result.stderr.splitlines() if "ERROR" in l]) == 1
+
+
+def test_umi_auto_fails_loudly_when_no_variable_region_is_found(tmp_path):
+    """A failed search must not be accepted as a result.
+
+    The second-read search was accepted when *either* bound was set, so the
+    failure value (0, -1) passed as success. Reads were then sliced [0:-1] --
+    the whole read but its last base -- and every read yielded a distinct
+    "UMI", filling umi_count.txt with rows that look entirely plausible. Only
+    a search that set both bounds has found anything. See issue #29.
+    """
+    _write_umi_fixture(tmp_path, umi_on="first")
+    result = _run_count(tmp_path, ["--umi", "auto"])
+
+    assert result.returncode != 0, "a failed UMI search was reported as success"
+    assert "ailed" in result.stderr
+    assert not (tmp_path / "out.umi_count.txt").exists()
+
+
+def test_umi_auto_reports_reads_with_nothing_after_the_guide(tmp_path):
+    """Reads that end at the guide leave no sequence to search.
+
+    The column-frequency table is then empty and max() over its keys raised an
+    uncaught ValueError, so the run died with a traceback rather than a message
+    naming the problem. See issue #29.
+    """
+    _write_umi_fixture(tmp_path, trailing=False)
+    result = _run_count(tmp_path, ["--umi", "auto"])
+
+    assert "Traceback" not in result.stderr
+    assert "ValueError" not in result.stderr

@@ -65,6 +65,38 @@ def mageckcount_iter_pg_pair_file(filename):
 
 
 
+def mageckcount_check_extraction_window(args):
+  """Require the fixed window that --pairguide and --umi extract from
+
+  Neither mode can search for its own window, so the start and end have to be
+  given. Without them the extraction slices an empty or wrong-length string and
+  the run finishes successfully with an empty table, which is indistinguishable
+  from a screen that simply did not sequence. Refuse to start instead.
+  """
+  # both options always carry a default from the parser; getattr keeps the check
+  # usable on the partial argument stubs that callers other than the CLI build
+  for (mode,label,first,second) in (
+      (getattr(args,'pairguide','none'),'--pairguide',('--pg-start','--pg-end','pg_start','pg_end'),
+          ('--pg-start-2','--pg-end-2','pg_start_2','pg_end_2')),
+      (getattr(args,'umi','none'),'--umi',('--umi-start','--umi-end','umi_start','umi_end'),
+          ('--umi-start-2','--umi-end-2','umi_start_2','umi_end_2'))):
+    if mode=='firstpair':
+      (startopt,endopt,startattr,endattr)=first
+    elif mode=='secondpair':
+      (startopt,endopt,startattr,endattr)=second
+    else:
+      continue # 'none', or a mode that locates its own window
+    start=getattr(args,startattr,-1); end=getattr(args,endattr,-1)
+    if start<0 or end<0:
+      logging.error(label+' '+mode+' requires both '+startopt+' and '+endopt
+          +' to give the position of the sequence to extract. Neither can be searched for automatically.')
+      sys.exit(-1)
+    if end<=start:
+      logging.error(endopt+' ('+str(end)+') must be greater than '+startopt+' ('+str(start)+').')
+      sys.exit(-1)
+  return 0
+
+
 def mageckcount_checkargs(args):
   """
   Check arguments
@@ -122,6 +154,10 @@ def mageckcount_checkargs(args):
   # to be matched against the same names
   args.pg_dropped_ids=dropped
   args.pg_dropped_ids_2=dropped2
+
+  # a missing extraction window used to be reported once per read, then sliced
+  # anyway; check it once, before any FASTQ is opened
+  mageckcount_check_extraction_window(args)
 
   # check count table
   if args.count_table != None:

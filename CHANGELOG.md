@@ -24,9 +24,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sequence and its gene is reported as `None`. See issue #27.
 - End-to-end tests for paired-guide counting, covering the allowed-pair filter,
   the new pair-level unmapped file, and read pairs whose first guide is unmatched.
+- `count` validates the extraction window for `--pairguide` and `--umi` once, up
+  front, and refuses to start without it. See issue #29.
+
+### Removed
+
+- `--pairguide auto` is no longer accepted, pending a reimplementation. It reused
+  the UMI variable-region search, which looks for a run of columns whose base
+  composition is near-random. That describes a UMI, not a guide drawn from a
+  fixed library, so the window it returned was truncated or never closed, and
+  every layout tested produced a header-only `pg_count.txt` with a zero exit
+  code. Specify `--pg-start`/`--pg-end` or `--pg-start-2`/`--pg-end-2` instead.
+  See issue #29 and issue #32.
 
 ### Fixed
 
+- `--pairguide firstpair|secondpair` and `--umi firstpair|secondpair` no longer
+  accept a missing extraction window. The window was checked inside the per-read
+  loop, which logged an error for every read — one line per read on a real FASTQ
+  — then sliced an empty string anyway and exited 0 with an empty table. The
+  check now runs once, before any FASTQ is opened, and exits non-zero. See
+  issue #29.
+- `--umi auto` no longer accepts a failed search as a result. A second-read
+  search that set only one of the two bounds was treated as success, so the
+  failure value `(0, -1)` sliced each read as `[0:-1]` — the whole read but its
+  last base — and every read produced a distinct "UMI", filling `umi_count.txt`
+  with plausible-looking rows built from unrelated sequence. See issue #29.
+- `--umi auto` no longer dies with an uncaught `ValueError` from `max()` on an
+  empty sequence when nothing follows the guide on read 1; it reports that there
+  is no region to search. See issue #29.
+- Removed an unreachable `--pairguide` branch in `mageckcount_processonefile`.
+  `args.umi` is assigned from `args.pairguide` before it runs, so the preceding
+  test always won; had it run, it set `args.umi='none'` and disabled paired-guide
+  extraction entirely.
 - `pathway` with its default `--method gsea` no longer fails; the `mageckGSEA`
   helper it shells out to is now built and shipped (previously absent, causing
   an opaque `FileNotFoundError` on a missing intermediate file). See issue #10.
