@@ -647,22 +647,41 @@ def test_pg_pair_only_warning_explains_duplicate_drop(tmp_path, caplog):
     assert "duplicate" in message.lower()
 
 
-def _write_paired_guide_fixture(tmp_path, unmatched_first_reads=0, unmatched_second_reads=0):
-    """A two-construct dual-guide library, one construct allowed by the pair file."""
+def _revcomp(seq):
+    return seq.translate(str.maketrans("ACGT", "TGCA"))[::-1]
+
+
+def _write_paired_guide_fixture(tmp_path, unmatched_first_reads=0, unmatched_second_reads=0,
+                                r2_prefix="", lib2_revcomp=False):
+    """A two-construct dual-guide library, one construct allowed by the pair file.
+
+    r2_prefix pads read 2 ahead of the second guide, so the guide no longer sits
+    at offset 0 and the extraction window has to be told where it is.
+    lib2_revcomp stores the second library reverse-complemented relative to the
+    reads, which is what --reverse-complement-2 exists to undo.
+    """
     guide1 = "ACGTACGTACGTACGTACGT"
     guide1b = "AACCGGTTAACCGGTTAACC"  # in the library, never sequenced
-    guide2a = "TGCATGCATGCATGCATGCA"
+    guide2a = "TTGACCTAGGCATTGACCAA"
     guide2b = "GGGGCCCCAAAATTTTGGGG"
+
+    # a guide that is its own reverse complement matches in both orientations, so
+    # it cannot tell a correct --reverse-complement-2 from a missing one
+    assert _revcomp(guide2a) != guide2a
+    assert _revcomp(guide2b) != guide2b
 
     (tmp_path / "lib1.txt").write_text(
         "sgRNA\tsequence\tgene\n"
         f"sg1\t{guide1}\tGENE1\n"
         f"sg1b\t{guide1b}\tGENE1\n"
     )
+    lib2 = (guide2a, guide2b)
+    if lib2_revcomp:
+        lib2 = tuple(_revcomp(g) for g in lib2)
     (tmp_path / "lib2.txt").write_text(
         "sgRNA\tsequence\tgene\n"
-        f"sg2a\t{guide2a}\tGENE2\n"
-        f"sg2b\t{guide2b}\tGENE3\n"
+        f"sg2a\t{lib2[0]}\tGENE2\n"
+        f"sg2b\t{lib2[1]}\tGENE3\n"
     )
     # only sg1+sg2a is a real construct; sg1+sg2b is a recombinant to be filtered
     (tmp_path / "pairs.txt").write_text(
@@ -676,27 +695,27 @@ def _write_paired_guide_fixture(tmp_path, unmatched_first_reads=0, unmatched_sec
         )
 
     r1 = [guide1] * 7
-    r2 = [guide2a] * 4 + [guide2b] * 3
+    r2 = [r2_prefix + guide2a] * 4 + [r2_prefix + guide2b] * 3
     # read pairs whose first guide matches nothing in the library
     r1 += ["TTTTTTTTTTTTTTTTTTTT"] * unmatched_first_reads
-    r2 += [guide2a] * unmatched_first_reads
+    r2 += [r2_prefix + guide2a] * unmatched_first_reads
     # read pairs whose second guide matches nothing in the second library
     r1 += [guide1] * unmatched_second_reads
-    r2 += ["CCCCCCCCCCCCCCCCCCCC"] * unmatched_second_reads
+    r2 += [r2_prefix + "CCCCCCCCCCCCCCCCCCCC"] * unmatched_second_reads
     (tmp_path / "r1.fastq").write_text(fastq(r1))
     (tmp_path / "r2.fastq").write_text(fastq(r2))
 
 
-def _run_paired_guide_count(tmp_path, extra_args=()):
+def _run_paired_guide_count(tmp_path, extra_args=(), start2="0", end2="20", pair_only=True):
     return subprocess.run(
         [
             "mageck2", "count",
             "-l", "lib1.txt",
             "--list-seq-2", "lib2.txt",
             "--pairguide", "secondpair",
-            "--pg-start-2", "0",
-            "--pg-end-2", "20",
-            "--pg-pair-only", "pairs.txt",
+            "--pg-start-2", start2,
+            "--pg-end-2", end2,
+            *(("--pg-pair-only", "pairs.txt") if pair_only else ()),
             "--trim-5", "0",
             "--sample-label", "s1",
             "--fastq", "r1.fastq",
@@ -1177,3 +1196,160 @@ def test_umi_auto_reports_reads_with_nothing_after_the_guide(tmp_path):
 
     assert "Traceback" not in result.stderr
     assert "ValueError" not in result.stderr
+
+
+def test_unmatched_reads_do_not_accumulate_a_none_key(tmp_path):
+    """Read pairs whose first guide matched nothing must not be retained.
+
+    In secondpair mode the second-read window was recorded for every read,
+    including those where read 1 matched no guide, under a None key. Nothing
+    ever reads that entry -- mageckcount_printpgdict skips it -- but it grows
+    with one entry per distinct unmatched window, so the memory held is sized by
+    the *unmapped* fraction of the FASTQ rather than by the library. See
+    issue #29.
+    """
+    import random
+
+    from mageck2.mageckCountIO import mageckcount_processonefile
+
+    rng = random.Random(3)
+
+    def rnd(n):
+        return "".join(rng.choice("ACGT") for _ in range(n))
+
+    guides = [("sg%d" % i, rnd(20), "GENE%d" % i) for i in range(1, 6)]
+    lib = tmp_path / "lib1.txt"
+    lib.write_text("".join(f"{a}\t{b}\t{c}\n" for a, b, c in guides))
+
+    matched, unmatched = 100, 2000
+    r1 = [guides[i % len(guides)][1] for i in range(matched)]
+    r1 += [rnd(20) for _ in range(unmatched)]   # in the library's alphabet, but absent from it
+    r2 = [rnd(20) for _ in range(matched + unmatched)]
+
+    def fastq(reads):
+        return "".join(f"@r{i}\n{s}\n+\n{'I' * len(s)}\n" for i, s in enumerate(reads))
+
+    (tmp_path / "r1.fastq").write_text(fastq(r1))
+    (tmp_path / "r2.fastq").write_text(fastq(r2))
+
+    class _Args:
+        trim_5 = "0"
+        count_n = False
+        sgrna_len = 0
+        unmapped_to_file = False
+        test_run = False
+        reverse_complement = False
+        umi = "secondpair"
+        umi_start = -1
+        umi_end = -1
+        umi_start_2 = 0
+        umi_end_2 = 20
+        pairguide = "secondpair"
+        pg_start = -1
+        pg_end = -1
+        pg_start_2 = 0
+        pg_end_2 = 20
+
+    genedict = {seq: (sgid, gene) for sgid, seq, gene in guides}
+    ctab, ctab_umi = {}, {}
+    mageckcount_processonefile(
+        str(tmp_path / "r1.fastq"), _Args(), ctab, ctab_umi, genedict, {},
+        str(tmp_path / "r2.fastq"), adjust=True,
+    )
+
+    assert None not in ctab_umi
+    # what is kept is bounded by the library, not by the unmapped read count
+    assert set(ctab_umi) <= set(genedict)
+    assert sum(len(v) for v in ctab_umi.values()) <= matched
+
+
+def _pg_counts(tmp_path):
+    rows = (tmp_path / "pg.pg_count.txt").read_text().splitlines()
+    assert rows[0].split("\t")[:2] == ["sgRNA1_sgRNA2", "Gene1_Gene2"]
+    return {r.split("\t")[0]: r.split("\t")[2] for r in rows[1:]}
+
+
+def test_wrong_second_read_window_yields_no_pairs(tmp_path):
+    """A misplaced --pg-start-2/--pg-end-2 is the quiet failure behind #15.
+
+    count.txt fills normally from read 1 while pg_count.txt comes out with only
+    a header, because the window slices sequence that matches nothing in
+    --list-seq-2. Nothing about the exit code says so, so pin the shape of the
+    failure: empty under the wrong window, correct under the right one, same
+    reads either way. See issue #29.
+    """
+    _write_paired_guide_fixture(tmp_path, r2_prefix="CCCCC")
+
+    missed = _run_paired_guide_count(tmp_path, start2="0", end2="20")
+    assert missed.returncode == 0, missed.stderr
+    assert _pg_counts(tmp_path) == {}
+
+    # read 1 matched throughout: the single-guide table is unaffected
+    single = (tmp_path / "pg.count.txt").read_text().splitlines()
+    assert [r.split("\t")[2] for r in single[1:] if r.startswith("sg1\t")] == ["7"]
+
+    found = _run_paired_guide_count(tmp_path, start2="5", end2="25")
+    assert found.returncode == 0, found.stderr
+    assert _pg_counts(tmp_path) == {"sg1_sg2a": "4"}
+
+
+def test_reverse_complement_2_matches_only_the_orientation_it_is_given(tmp_path):
+    """--reverse-complement-2 flips the library, not the read.
+
+    It must be required when the library is stored opposite the reads, and must
+    break the match when it is not -- a flag that appeared to work either way
+    would mean the guides were self-complementary, not that the option works.
+    See issue #29.
+    """
+    forward = tmp_path / "forward"
+    forward.mkdir()
+    _write_paired_guide_fixture(forward, lib2_revcomp=False)
+    assert _run_paired_guide_count(forward).returncode == 0
+    assert _pg_counts(forward) == {"sg1_sg2a": "4"}
+
+    assert _run_paired_guide_count(forward, extra_args=["--reverse-complement-2"]).returncode == 0
+    assert _pg_counts(forward) == {}, "the flag must not match a library already in read orientation"
+
+    flipped = tmp_path / "flipped"
+    flipped.mkdir()
+    _write_paired_guide_fixture(flipped, lib2_revcomp=True)
+    assert _run_paired_guide_count(flipped).returncode == 0
+    assert _pg_counts(flipped) == {}, "a reverse-complemented library must not match without the flag"
+
+    assert _run_paired_guide_count(flipped, extra_args=["--reverse-complement-2"]).returncode == 0
+    assert _pg_counts(flipped) == {"sg1_sg2a": "4"}
+
+
+def test_pg_min_read_excludes_pairs_below_the_threshold(tmp_path):
+    """--pg-min-read drops sparse pairs; the boundary value is kept.
+
+    The threshold is applied to the total across samples, and the comparison is
+    >=, so a pair with exactly --pg-min-read reads must survive. See issue #29.
+    """
+    _write_paired_guide_fixture(tmp_path)
+
+    assert _run_paired_guide_count(tmp_path, extra_args=["--pg-min-read", "4"]).returncode == 0
+    assert _pg_counts(tmp_path) == {"sg1_sg2a": "4"}, "a pair at the threshold must be kept"
+
+    assert _run_paired_guide_count(tmp_path, extra_args=["--pg-min-read", "5"]).returncode == 0
+    assert _pg_counts(tmp_path) == {}
+
+    # the default is 3, which the 4-read pair clears on its own
+    assert _run_paired_guide_count(tmp_path).returncode == 0
+    assert _pg_counts(tmp_path) == {"sg1_sg2a": "4"}
+
+
+def test_all_pairs_are_reported_when_pg_pair_only_is_omitted(tmp_path):
+    """Without --pg-pair-only every observed combination is reported.
+
+    The filtered run keeps only sg1+sg2a; without the option the recombinant
+    sg1+sg2b must appear too, so the option is doing the filtering rather than
+    some other part of the path silently dropping the pair. See issue #29.
+    """
+    _write_paired_guide_fixture(tmp_path)
+
+    assert _run_paired_guide_count(tmp_path, pair_only=False).returncode == 0
+    assert _pg_counts(tmp_path) == {"sg1_sg2a": "4", "sg1_sg2b": "3"}
+
+    assert _run_paired_guide_count(tmp_path, pair_only=True).returncode == 0
+    assert _pg_counts(tmp_path) == {"sg1_sg2a": "4"}

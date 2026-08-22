@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the new pair-level unmapped file, and read pairs whose first guide is unmatched.
 - `count` validates the extraction window for `--pairguide` and `--umi` once, up
   front, and refuses to start without it. See issue #29.
+- Paired-guide tests for a misplaced `--pg-start-2`/`--pg-end-2` window, for
+  `--reverse-complement-2` in both orientations, for the `--pg-min-read`
+  threshold including its boundary value, and for `--pg-pair-only` omitted.
+  See issue #29.
 
 ### Removed
 
@@ -53,6 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--umi auto` no longer dies with an uncaught `ValueError` from `max()` on an
   empty sequence when nothing follows the guide on read 1; it reports that there
   is no region to search. See issue #29.
+- In `--pairguide secondpair` mode, the second-read window is no longer recorded
+  for read pairs whose first read matched no guide. Those were accumulated under
+  a `None` key that nothing ever reads back — `mageckcount_printpgdict` skips it
+  — so the memory retained grew with the *unmapped* fraction of the FASTQ rather
+  than with the library. A run of 100 matched against 5,000 unmatched reads held
+  5,000 such entries against 100 useful ones. See issue #29.
 - Removed an unreachable `--pairguide` branch in `mageckcount_processonefile`.
   `args.umi` is assigned from `args.pairguide` before it runs, so the preceding
   test always won; had it run, it set `args.umi='none'` and disabled paired-guide
