@@ -316,8 +316,6 @@ def mageckcount_search_trim_and_sglen(args,fseq0,genedict,ctab,ctab_umi,candidat
         matched_seq=fseqc
         if args.umi=='firstpair':
           # extract UMIs from the first pair
-          if args.umi_start == -1 or args.umi_end == -1:
-            logging.error('Error: umi-start and umi-end has to be greater than zero')
           umiseq = fseq[(testl+args.umi_start):(testl+args.umi_end)]
           if fseqc not in ctab_umi:
             ctab_umi[fseqc]={}
@@ -481,8 +479,11 @@ def mageckcount_processonefile(filename,args,ctab,ctab_umi,genedict,datastat,pai
       nmappedcount+=1
     if args.umi!='none':
       # now search for UMIs on the second pair
-      if args.umi=='secondpair':
-        # extract UMIs from the second pair
+      if args.umi=='secondpair' and firstpair_found==True:
+        # extract UMIs from the second pair. A read whose first pair matched no
+        # guide has nothing to attach the window to; recording it under a None
+        # key retains one entry per distinct unmatched window -- memory sized by
+        # the unmapped reads -- and nothing ever reads it back
         umiseq = fseq1[args.umi_start_2:args.umi_end_2]
         if matched_seq not in ctab_umi:
           ctab_umi[matched_seq]={}
