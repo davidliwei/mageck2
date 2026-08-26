@@ -58,8 +58,9 @@ def mageckmle_main(pvargs=None,parsedargs=None,returndict=False):
         'this release, so the following '+noun+' cannot be honored: '+', '.join(disabled)+'. Rerun '
         'without '+obj+'; no other results change, because '+subj+' never applied.')
     if '-e/--negative-control' in disabled:
-      logging.error('To normalize against negative-control sgRNAs, use --norm-method control together '
-          'with --control-sgrna instead of -e/--negative-control.')
+      logging.error('To normalize against negative-control genes, list them one per line in a file '
+          'and pass --norm-method control with --control-gene. Note --control-sgrna is not the '
+          'equivalent: it expects sgRNA IDs, and gene names given to it match nothing.')
     sys.exit(1)
   # from mleclassdef import *
   # from mledesignmat import *

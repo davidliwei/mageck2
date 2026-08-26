@@ -544,17 +544,18 @@ def test_mle_rejects_disabled_bayes_options(tmp_path, label, argv, named):
 
 
 def test_mle_negative_control_points_at_the_supported_option(tmp_path):
-    """-e is the trap of the three: mle has a real control-sgRNA option too.
+    """-e is the trap of the three: mle has real control-based normalization too.
 
-    A user reaching for -e almost certainly wants control-based normalization,
-    so the refusal has to say where that actually lives.
+    It must name --control-gene, not --control-sgrna. -e took a *gene* name,
+    and --control-sgrna matches sgRNA IDs -- feeding it gene names finds zero
+    controls and exits 255, so the wrong pointer just relocates the dead end.
     """
     designmat = _write_designmat(tmp_path, "good.txt", _GOOD_ROWS)
 
     result = _run_mle(tmp_path, designmat, "negctl", extra_args=("-e", "A1CF"))
 
     combined = result.stdout + result.stderr
-    assert "--control-sgrna" in combined and "--norm-method control" in combined
+    assert "--control-gene" in combined and "--norm-method control" in combined
 
 
 def test_mle_reports_every_disabled_option_at_once(tmp_path):

@@ -50,8 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a "PPI off" run gave the same model, differing only in unseeded
   permutation noise. They are now refused together, exiting non-zero and writing
   nothing, matching what `--bayes` already did. `-e` additionally points at
-  `--norm-method control` with `--control-sgrna`, which is what a user reaching
-  for it usually wants. See issue #36.
+  `--norm-method control` with `--control-gene`, which is what a user reaching
+  for it usually wants — and warns off `--control-sgrna`, which takes sgRNA IDs
+  rather than the gene names `-e` accepted. See issue #36.
 - `--pairguide firstpair|secondpair` and `--umi firstpair|secondpair` no longer
   accept a missing extraction window. The window was checked inside the per-read
   loop, which logged an error for every read — one line per read on a real FASTQ
