@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-31
+
+This release changes two command-line behaviors. `--pairguide auto` is no longer
+accepted, and `mle` now refuses `-p`/`--PPI-prior`, `-w`/`--PPI-weighting` and
+`-e`/`--negative-control` instead of ignoring them. Both previously ran to
+completion and produced output that did not reflect the option given; see
+**Removed** and **Fixed** below.
+
 ### Added
 
 - Bundled the `mageckGSEA` C++ helper (vendored from legacy MAGeCK, BSD
