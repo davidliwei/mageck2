@@ -11,6 +11,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 DATA = Path(__file__).parent / "data" / "count_table.txt"
 GMT = Path(__file__).parent / "data" / "pathways.gmt"
 
@@ -410,7 +412,7 @@ def _write_designmat(tmp_path, name, rows, header="Samples\tbaseline\tHL60\tKBM7
     return p
 
 
-def _run_mle(tmp_path, designmat, prefix):
+def _run_mle(tmp_path, designmat, prefix, extra_args=()):
     return subprocess.run(
         [
             "mageck2", "mle",
@@ -418,6 +420,7 @@ def _run_mle(tmp_path, designmat, prefix):
             "-d", str(designmat),
             "-n", prefix,
             "--permutation-round", "1",
+            *extra_args,
         ],
         cwd=tmp_path,
         capture_output=True,
@@ -504,6 +507,69 @@ def test_mle_accepts_valid_designmat_with_pooled_baselines(tmp_path):
     assert gene_summary.exists()
     header = gene_summary.read_text().splitlines()[0].split("\t")
     assert "HL60|beta" in header and "KBM7|beta" in header
+
+
+# The experimental Bayes module is disabled (--bayes exits 1), and these three
+# options only have meaning inside it. They used to be accepted and ignored, so
+# a run "with PPI" and a run "without" produced the same model -- see issue #36.
+_DISABLED_BAYES_ARGS = [
+    ("-p", ("-p",), "--PPI-prior"),
+    ("--PPI-prior", ("--PPI-prior",), "--PPI-prior"),
+    ("-w", ("-w", "0.5"), "--PPI-weighting"),
+    ("-e", ("-e", "A1CF"), "--negative-control"),
+]
+
+
+@pytest.mark.parametrize(
+    "label,argv,named", _DISABLED_BAYES_ARGS, ids=[a[0] for a in _DISABLED_BAYES_ARGS]
+)
+def test_mle_rejects_disabled_bayes_options(tmp_path, label, argv, named):
+    """A disabled option must not produce output that looks like it was honored.
+
+    Each of these reached argparse, was never read again, and left a complete
+    gene_summary.txt behind at exit 0 -- indistinguishable from a run that had
+    applied it.
+    """
+    designmat = _write_designmat(tmp_path, "good.txt", _GOOD_ROWS)
+
+    result = _run_mle(tmp_path, designmat, "disabled", extra_args=argv)
+
+    assert result.returncode != 0, label + " must not be silently ignored"
+    combined = result.stdout + result.stderr
+    assert named in combined, "the error must name the option that was refused"
+    assert "disabled" in combined
+    assert not (tmp_path / "disabled.gene_summary.txt").exists(), (
+        "refusing the option must also mean writing no results"
+    )
+
+
+def test_mle_negative_control_points_at_the_supported_option(tmp_path):
+    """-e is the trap of the three: mle has real control-based normalization too.
+
+    It must name --control-gene, not --control-sgrna. -e took a *gene* name,
+    and --control-sgrna matches sgRNA IDs -- feeding it gene names finds zero
+    controls and exits 255, so the wrong pointer just relocates the dead end.
+    """
+    designmat = _write_designmat(tmp_path, "good.txt", _GOOD_ROWS)
+
+    result = _run_mle(tmp_path, designmat, "negctl", extra_args=("-e", "A1CF"))
+
+    combined = result.stdout + result.stderr
+    assert "--control-gene" in combined and "--norm-method control" in combined
+
+
+def test_mle_reports_every_disabled_option_at_once(tmp_path):
+    """Fixing one flag only to be stopped by the next is a poor way to learn."""
+    designmat = _write_designmat(tmp_path, "good.txt", _GOOD_ROWS)
+
+    result = _run_mle(
+        tmp_path, designmat, "allthree", extra_args=("-p", "-w", "0.5", "-e", "A1CF")
+    )
+
+    assert result.returncode != 0
+    combined = result.stdout + result.stderr
+    for named in ("--PPI-prior", "--PPI-weighting", "--negative-control"):
+        assert named in combined, named + " missing from the combined error"
 
 
 def test_documented_designmat_example_is_valid():

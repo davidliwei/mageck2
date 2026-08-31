@@ -208,10 +208,10 @@ def arg_mle(subparser):
   emgroup.add_argument('--update-efficiency',action='store_true',help='Iteratively update sgRNA efficiency during EM iteration.')
   ## Bayes option
   bayesgroup=subm_mle.add_argument_group(title='Optional arguments for the Bayes estimation of gene essentiality (experimental)',description='')
-  bayesgroup.add_argument("--bayes",action='store_true',help="Use the experimental Bayes module to estimate gene essentiality")
-  bayesgroup.add_argument("-p","--PPI-prior",action='store_true',help="Specify whether you want to incorporate PPI as prior")
-  bayesgroup.add_argument("-w","--PPI-weighting",type=float,help="The weighting used to calculate PPI prior. If not provided, iterations will be used.",default=None)
-  bayesgroup.add_argument("-e","--negative-control",help="The gene name of negative controls. The corresponding sgRNA will be viewed independently.",default=None)
+  bayesgroup.add_argument("--bayes",action='store_true',help="Use the experimental Bayes module to estimate gene essentiality. Currently disabled: passing this option is an error.")
+  bayesgroup.add_argument("-p","--PPI-prior",action='store_true',help="Specify whether you want to incorporate PPI as prior. Part of the disabled --bayes module; currently an error.")
+  bayesgroup.add_argument("-w","--PPI-weighting",type=float,help="The weighting used to calculate PPI prior. If not provided, iterations will be used. Part of the disabled --bayes module; currently an error.",default=None)
+  bayesgroup.add_argument("-e","--negative-control",help="The gene name of negative controls. The corresponding sgRNA will be viewed independently. Part of the disabled --bayes module; currently an error -- for control-based normalization put the gene names in a file and use --norm-method control with --control-gene.",default=None)
 
 def arg_run(subparser):
   """

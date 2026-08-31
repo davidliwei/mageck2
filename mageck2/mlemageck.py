@@ -39,9 +39,28 @@ def mageckmle_main(pvargs=None,parsedargs=None,returndict=False):
   else:
     args=mageckmle_parseargs(pvargs)
   args=mageckmle_postargs(args)
-  # Bayes module
-  if hasattr(args,'bayes') and args.bayes:
-    logging.error('The experimental mle --bayes module is currently disabled and not supported in this release.')
+  # Bayes module. These options are only ever read inside mlemageck_bayes, which
+  # this module does not import, so accepting any of them would run a plain MLE
+  # and write results that look as though the option had been applied. Refuse
+  # them together, so fixing one does not just reveal the next. See issue #36.
+  disabled=[]
+  if getattr(args,'bayes',False):
+    disabled.append('--bayes')
+  if getattr(args,'PPI_prior',False):
+    disabled.append('-p/--PPI-prior')
+  if getattr(args,'PPI_weighting',None) is not None:
+    disabled.append('-w/--PPI-weighting')
+  if getattr(args,'negative_control',None) is not None:
+    disabled.append('-e/--negative-control')
+  if len(disabled)>0:
+    (noun,obj,subj)=('option','it','it was') if len(disabled)==1 else ('options','them','they were')
+    logging.error('The experimental mle --bayes module is currently disabled and not supported in '
+        'this release, so the following '+noun+' cannot be honored: '+', '.join(disabled)+'. Rerun '
+        'without '+obj+'; no other results change, because '+subj+' never applied.')
+    if '-e/--negative-control' in disabled:
+      logging.error('To normalize against negative-control genes, list them one per line in a file '
+          'and pass --norm-method control with --control-gene. Note --control-sgrna is not the '
+          'equivalent: it expects sgRNA IDs, and gene names given to it match nothing.')
     sys.exit(1)
   # from mleclassdef import *
   # from mledesignmat import *
