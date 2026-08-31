@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pathway --method gsea` — the default — now works from a pip/source install.
 - Pathway smoke tests (`pathway --method gsea` and `--method rra`, end to end)
   and a small GMT test fixture.
+- `tests/conftest.py`, which puts this repository's freshly built `RRA` and
+  `mageckGSEA` first on `PATH` when they exist. The suite invokes the helpers by
+  bare name, so under an editable install — which never runs the compile step —
+  it silently tested whichever build came first, including a MAGeCK v1 package's
+  identically named binaries. That reported four `mageckGSEA` failures against
+  fixes present in the checkout, with nothing in the output naming the binary as
+  the cause. Falls back to the installed helpers when the repo ones are absent.
 - `count` writes `<prefix>.pg_unmapped.txt` when `--unmapped-to-file` is given in
   paired-guide mode, recording pairs that were counted but excluded from
   `pg_count.txt` — because the second guide matched no entry in `--list-seq-2`,
