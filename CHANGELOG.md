@@ -225,6 +225,7 @@ Initial public source release, built on
   control, RRA and MLE essentiality testing with copy-number correction, and
   functional enrichment.
 
-[Unreleased]: https://github.com/davidliwei/mageck2/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/davidliwei/mageck2/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/davidliwei/mageck2/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/davidliwei/mageck2/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/davidliwei/mageck2/releases/tag/v0.1.0
