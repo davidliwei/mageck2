@@ -7,6 +7,7 @@ gene_summary file. They are intentionally lightweight so they can run on every
 push in CI.
 """
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -24,14 +25,29 @@ def test_package_imports():
     assert __version__
 
 
+def _installed_path():
+    """The PATH as it stood before conftest prepended this repo's build tree.
+
+    The rest of the suite deliberately tests the checkout's own helpers. These
+    two tests are the exception: they check that an *installed* MAGeCK2 can find
+    its helpers, which is what `data_files` is responsible for and what a user
+    running `pip install mageck2` depends on. Looking at the build tree here
+    would let a broken installation pass CI, since `pip install .` leaves the
+    build outputs in the source tree as well.
+    """
+    return os.environ.get("MAGECK2_INSTALLED_PATH", os.environ.get("PATH", ""))
+
+
 def test_rra_binary_on_path():
-    assert shutil.which("RRA") is not None, "compiled RRA binary not found on PATH"
+    assert (
+        shutil.which("RRA", path=_installed_path()) is not None
+    ), "compiled RRA binary not installed onto PATH"
 
 
 def test_mageckgsea_binary_on_path():
     assert (
-        shutil.which("mageckGSEA") is not None
-    ), "compiled mageckGSEA binary not found on PATH"
+        shutil.which("mageckGSEA", path=_installed_path()) is not None
+    ), "compiled mageckGSEA binary not installed onto PATH"
 
 
 def test_mageck2_cli_runs():
