@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-31
+
+This release changes two command-line behaviors. `--pairguide auto` is no longer
+accepted, and `mle` now refuses `-p`/`--PPI-prior`, `-w`/`--PPI-weighting` and
+`-e`/`--negative-control` instead of ignoring them. Both previously ran to
+completion and produced output that did not reflect the option given; see
+**Removed** and **Fixed** below.
+
 ### Added
 
 - Bundled the `mageckGSEA` C++ helper (vendored from legacy MAGeCK, BSD
@@ -217,6 +225,7 @@ Initial public source release, built on
   control, RRA and MLE essentiality testing with copy-number correction, and
   functional enrichment.
 
-[Unreleased]: https://github.com/davidliwei/mageck2/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/davidliwei/mageck2/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/davidliwei/mageck2/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/davidliwei/mageck2/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/davidliwei/mageck2/releases/tag/v0.1.0
