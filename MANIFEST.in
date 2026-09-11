@@ -9,12 +9,18 @@ include rra/Makefile
 recursive-include rra/src *.cpp *.h
 recursive-include rra/include *.h
 include rra/bin/.gitkeep
+# The compiled helper is a data_files entry, which setuptools would otherwise
+# pull into the sdist. A source distribution must not carry one platform's
+# binary: exclude it so a local `python -m build` produces the same tarball as
+# the release workflow, which builds from a never-compiled checkout.
+exclude rra/bin/RRA
 
 # mageckGSEA C++ helper: Makefile, sources, and headers, including the bundled
 # TCLAP argument parser under gsea/src/tclap (compiled on install)
 include gsea/Makefile
 recursive-include gsea/src *.cpp *.h
 include gsea/bin/.gitkeep
+exclude gsea/bin/mageckGSEA
 
 # CLI launch script installed onto PATH
 include bin/mageck2
