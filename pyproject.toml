@@ -33,7 +33,7 @@ test = ["pytest"]
 
 [project.urls]
 Homepage = "https://github.com/davidliwei/mageck2"
-Documentation = "https://github.com/davidliwei/mageck2-doc"
+Documentation = "https://mageck2.readthedocs.io"
 Issues = "https://github.com/davidliwei/mageck2/issues"
 
 [tool.setuptools]
