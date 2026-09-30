@@ -235,9 +235,11 @@ def arg_run(subparser):
   # subp_run.add_argument('--pdf-report',action='store_true',help='Generate pdf report of the analysis.')
   pass
 
-def crisprseq_parseargs():
+def build_parser():
   """
-  Parsing mageck arguments.
+  Building the mageck argument parser, without parsing anything.
+  Kept separate from crisprseq_parseargs() so the parser can be inspected without
+  side effects; the documentation build introspects it to generate the option reference.
   """
   parser=argparse.ArgumentParser(description='mageck: performs sgRNA, gene and pathway analysis on CRISPR-Cas9 screening data.')
   # definition of sub commands
@@ -267,6 +269,14 @@ def crisprseq_parseargs():
   #
   # subm_mle.add_argument('args', nargs=argparse.REMAINDER)
   
+  return parser
+
+def crisprseq_parseargs():
+  """
+  Parsing mageck arguments.
+  """
+  parser=build_parser()
+
   args=parser.parse_args()
   
   if args.subcmd == None:
