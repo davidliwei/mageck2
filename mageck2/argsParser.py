@@ -34,8 +34,8 @@ def arg_count(subparser):
   cnt_norm_group=subp_count.add_argument_group(title='Optional arguments for normalization',description='')
   cnt_norm_group.add_argument('--norm-method',choices=['none','median','total','control'],default='median',help='Method for normalization, including "none" (no normalization), "median" (median normalization, default), "total" (normalization by total read counts), "control" (normalization by control sgRNAs specified by the --control-sgrna option).')
   cnt_norm_group_ctrl=cnt_norm_group.add_mutually_exclusive_group()
-  cnt_norm_group_ctrl.add_argument('--control-sgrna',help='A list of control sgRNAs for normalization. With --day0-label, the quality control step also passes them to the "test" command, where they are used as RRA control sgRNAs.')
-  cnt_norm_group_ctrl.add_argument('--control-gene',help='A list of genes whose sgRNAs are used as control sgRNAs for normalization. With --day0-label, the quality control step also passes them to the "test" command, where they are used as RRA control sgRNAs.')
+  cnt_norm_group_ctrl.add_argument('--control-sgrna',help='A list of control sgRNAs for normalization. With --day0-label, the quality control step also runs the "test" command with this list as RRA control sgRNAs, provided the --gmt-file pathway overlaps the library.')
+  cnt_norm_group_ctrl.add_argument('--control-gene',help='A list of genes whose sgRNAs are used as control sgRNAs for normalization. With --day0-label, the quality control step also runs the "test" command with this list as RRA control sgRNAs, provided the --gmt-file pathway overlaps the library.')
   
   cnt_iogroup=subp_count.add_argument_group(title='Optional arguments for input and output',description='')
   cnt_iogroup.add_argument('--sample-label',default='',help='Sample labels, separated by comma (,). Must be equal to the number of samples provided (in --fastq option). Default "sample1,sample2,...".')
@@ -179,8 +179,8 @@ def arg_mle(subparser):
   iogroup.add_argument('-b', '--beta-labels', help='Specify the labels of the variables (i.e., beta), if the design matrix is not given by file in the --design-matrix option. Should be separated by ",", and the number of labels must equal to (# columns of design matrix), including baseline labels. Default value: "beta_0,beta_1,beta_2,...".')
   #iogroup.add_argument('--control-sgrna',help='A list of control sgRNAs. Permutation will also be done from a list of control sgRNAs (instead of all sgRNAs).')
   iogroup_ctrl=iogroup.add_mutually_exclusive_group()
-  iogroup_ctrl.add_argument('--control-sgrna',help='A list of control sgRNAs for normalization, and as the background gene set for the permutation that produces p-values.')
-  iogroup_ctrl.add_argument('--control-gene',help='A list of genes whose sgRNAs are used as control sgRNAs for normalization, and as the background gene set for the permutation that produces p-values.')
+  iogroup_ctrl.add_argument('--control-sgrna',help='A list of control sgRNAs for normalization, and as the background gene set for the permutation that produces p-values -- except under --no-permutation-by-group, which permutes against all genes.')
+  iogroup_ctrl.add_argument('--control-gene',help='A list of genes whose sgRNAs are used as control sgRNAs for normalization, and as the background gene set for the permutation that produces p-values -- except under --no-permutation-by-group, which permutes against all genes.')
   # iogroup.add_argument('--cnv-norm',help='A matrix of copy number variation data across cell lines to normalize CNV-biased BetaScores.')
   ## Optional CNV correction arguments
   cnvcorgroup=subm_mle.add_argument_group(title='Optional arguments for CNV correction',description='')

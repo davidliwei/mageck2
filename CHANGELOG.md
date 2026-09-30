@@ -35,8 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   them, to generate "the null distribution of RRA". Each subcommand now describes
   what it actually does with the list. Under `test` the original wording was
   right. Under `mle` the list is used for normalization and to build the
-  background gene set the permutation draws on (`mlemultiprocessing.py`), which is
-  not RRA. Under `plot` it is used for normalization alone. Under `count` it is
+  background gene set the permutation draws on (`mlemultiprocessing.py:245`),
+  which is not RRA — though not under `--no-permutation-by-group`, which takes a
+  different path (`mlemageck.py:232`) and permutes against all genes. Under
+  `plot` it is used for normalization alone. Under `count` it is
   used for normalization, and — when `--day0-label` is given and the `--gmt-file`
   pathway overlaps the library — the quality control step shells out to `test`
   with the same list (`mageckCountQC.py:156`), where it does become RRA's control
