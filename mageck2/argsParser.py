@@ -34,8 +34,8 @@ def arg_count(subparser):
   cnt_norm_group=subp_count.add_argument_group(title='Optional arguments for normalization',description='')
   cnt_norm_group.add_argument('--norm-method',choices=['none','median','total','control'],default='median',help='Method for normalization, including "none" (no normalization), "median" (median normalization, default), "total" (normalization by total read counts), "control" (normalization by control sgRNAs specified by the --control-sgrna option).')
   cnt_norm_group_ctrl=cnt_norm_group.add_mutually_exclusive_group()
-  cnt_norm_group_ctrl.add_argument('--control-sgrna',help='A list of control sgRNAs for normalization.')
-  cnt_norm_group_ctrl.add_argument('--control-gene',help='A list of genes whose sgRNAs are used as control sgRNAs for normalization.')
+  cnt_norm_group_ctrl.add_argument('--control-sgrna',help='A list of control sgRNAs for normalization. With --day0-label, the quality control step also passes them to the "test" command, where they are used as RRA control sgRNAs.')
+  cnt_norm_group_ctrl.add_argument('--control-gene',help='A list of genes whose sgRNAs are used as control sgRNAs for normalization. With --day0-label, the quality control step also passes them to the "test" command, where they are used as RRA control sgRNAs.')
   
   cnt_iogroup=subp_count.add_argument_group(title='Optional arguments for input and output',description='')
   cnt_iogroup.add_argument('--sample-label',default='',help='Sample labels, separated by comma (,). Must be equal to the number of samples provided (in --fastq option). Default "sample1,sample2,...".')
@@ -103,7 +103,7 @@ def arg_test(subparser):
   gengroup.add_argument('--variance-estimation-samples',help='Sample label or sample index for estimating variances, separated by comma (,). See -t/--treatment-id option for specifying samples.')
   gengroup.add_argument('--sort-criteria',choices=['neg','pos'],default='neg',help='Sorting criteria, either by negative selection (neg) or positive selection (pos). Default negative selection.')
   gengroup.add_argument('--remove-zero',choices=['none','control','treatment','both','any'],default='both',help='Remove sgRNAs whose mean value is zero in control, treatment, both control/treatment, or any control/treatment sample. Default: both (remove those sgRNAs that are zero in both control and treatment samples).')
-  gengroup.add_argument('--remove-zero-threshold',type=float,default=0.0,help='The normalized count threshold below which an sgRNA counts as zero for the --remove-zero option. Default 0.')
+  gengroup.add_argument('--remove-zero-threshold',type=float,default=0.0,help='The normalized count threshold at or below which an sgRNA counts as zero for the --remove-zero option. Default 0.')
   gengroup.add_argument('--pdf-report',action='store_true',help='Generate pdf report of the analysis.')
   gengroup.add_argument('--gene-lfc-method',choices=['median','alphamedian','mean','alphamean','secondbest'],help='Method to calculate gene log2 fold changes (LFC) from sgRNA LFCs. Available methods include the median/mean of all sgRNAs (median/mean), or the median/mean sgRNAs that are ranked in front of the alpha cutoff in RRA (alphamedian/alphamean), or the sgRNA that has the second strongest LFC (secondbest). In the alphamedian/alphamean case, the number of sgRNAs correspond to the "goodsgrna" column in the output, and the gene LFC will be set to 0 if no sgRNA is in front of the alpha cutoff. Default median.',default='median')
   ## Optional IO arguments

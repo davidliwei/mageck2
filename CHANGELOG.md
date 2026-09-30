@@ -17,8 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still described `--pairguide auto` after 0.3.0 removed it.
 
 - Reworded a few help strings to the phrasing the documentation had been using,
-  where nothing was lost by it: `mle --threads`, `test --remove-zero-threshold`,
-  and `mle --sgrna-eff-name-column`/`--sgrna-eff-score-column`, which now say the
+  where nothing was lost by it: `mle --threads`, and
+  `mle --sgrna-eff-name-column`/`--sgrna-eff-score-column`, which now say the
   column index is 0-based rather than leaving it to be inferred from the default.
 
 ### Fixed
@@ -32,10 +32,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an alternative to "sam files". Neither subcommand accepts SAM input; the clause
   was left over from `count`.
 - `--control-sgrna`/`--control-gene` claimed, under every subcommand that accepts
-  them, to generate "the null distribution of RRA". That is true only of `test`.
-  Under `count` and `plot` the lists are used for normalization and nothing else;
-  under `mle` they are used for normalization and to build the background gene set
-  that the permutation draws on (`mlemultiprocessing.py`), which is not RRA.
+  them, to generate "the null distribution of RRA". Each subcommand now describes
+  what it actually does with the list. Under `test` the original wording was
+  right. Under `mle` the list is used for normalization and to build the
+  background gene set the permutation draws on (`mlemultiprocessing.py`), which is
+  not RRA. Under `plot` it is used for normalization alone. Under `count` it is
+  used for normalization, and — when `--day0-label` is given and the `--gmt-file`
+  pathway overlaps the library — the quality control step shells out to `test`
+  with the same list (`mageckCountQC.py:156`), where it does become RRA's control
+  (`crisprFunction.py:561`).
+- `test --remove-zero-threshold` said an sgRNA counts as zero when its normalized
+  mean falls "below" the threshold. The filter is `x > threshold`, so a mean equal
+  to the threshold is removed as well; it now reads "at or below". This matters at
+  the default of 0, where it decides whether an exactly-zero sgRNA is dropped.
 
 ## [0.3.0] - 2026-08-31
 
