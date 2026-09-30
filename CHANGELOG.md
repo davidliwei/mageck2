@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `argsParser.build_parser()` builds the command-line parser and returns it;
+  `crisprseq_parseargs()` now calls it and then parses. No behavior change — the
+  split exists so the parser can be inspected without side effects, which lets a
+  documentation build generate the option reference from the parser itself rather
+  than from `--help` output pasted in by hand. The hand-pasting is why `USAGE.md`
+  still described `--pairguide auto` after 0.3.0 removed it.
+
 ## [0.3.0] - 2026-08-31
 
 This release changes two command-line behaviors. `--pairguide auto` is no longer
