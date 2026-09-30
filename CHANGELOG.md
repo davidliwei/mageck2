@@ -16,6 +16,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   than from `--help` output pasted in by hand. The hand-pasting is why `USAGE.md`
   still described `--pairguide auto` after 0.3.0 removed it.
 
+- Reworded a few help strings to the phrasing the documentation had been using,
+  where nothing was lost by it: `mle --threads`, `test --remove-zero-threshold`,
+  and `mle --sgrna-eff-name-column`/`--sgrna-eff-score-column`, which now say the
+  column index is 0-based rather than leaving it to be inferred from the default.
+
+### Fixed
+
+- Three typos in help text users see: `beta_0` was spelled `bata_0`
+  (`mle -b/--beta-labels`), `integer` as `interger` (`mle --permutation-round`),
+  and `permutation` as `perumtation` (`pathway --permutation`). Also the grammar
+  in `mle --day0-label`, `--cnv-est` (both `test` and `mle`) and
+  `mle --max-sgrnapergene-permutation`.
+- `test -k/--count-table` and `plot -k/--count-table` described the count table as
+  an alternative to "sam files". Neither subcommand accepts SAM input; the clause
+  was left over from `count`.
+- `--control-sgrna`/`--control-gene` claimed, under every subcommand that accepts
+  them, to generate "the null distribution of RRA". That is true only of `test`.
+  Under `count` and `plot` the lists are used for normalization and nothing else;
+  under `mle` they are used for normalization and to build the background gene set
+  that the permutation draws on (`mlemultiprocessing.py`), which is not RRA.
+
 ## [0.3.0] - 2026-08-31
 
 This release changes two command-line behaviors. `--pairguide auto` is no longer
