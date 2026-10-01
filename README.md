@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/davidliwei/mageck2/actions/workflows/ci.yml/badge.svg)](https://github.com/davidliwei/mageck2/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/mageck2.svg)](https://pypi.org/project/mageck2/)
+[![Documentation](https://readthedocs.org/projects/mageck2/badge/?version=latest)](https://mageck2.readthedocs.io/en/latest/)
 [![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 
 MAGeCK2 is a new computational tool, built upon MAGeCK, for CRISPR screening analysis.
@@ -36,7 +37,8 @@ or from a local clone:
     cd mageck2
     pip install .
 
-For detailed instructions, see [mageck2-doc](https://github.com/davidliwei/mageck2-doc).
+For detailed instructions, see the
+[installation guide](https://mageck2.readthedocs.io/en/latest/INSTALL.html).
 
 
 # Quick start
@@ -50,7 +52,18 @@ Runnable example datasets are available in the [mageck2-demo](https://github.com
 
 # Documentation
 
-For instructions on installation, usage and running examples, see [mageck2-doc](https://github.com/davidliwei/mageck2-doc).
+The documentation is at **[mageck2.readthedocs.io](https://mageck2.readthedocs.io)**:
+
+* [Installation](https://mageck2.readthedocs.io/en/latest/INSTALL.html)
+* [Tutorials](https://mageck2.readthedocs.io/en/latest/TUTORIAL.html)
+* [Command-line reference](https://mageck2.readthedocs.io/en/latest/usage/index.html)
+* [File formats](https://mageck2.readthedocs.io/en/latest/FILE_FORMATS.html)
+* [FAQ](https://mageck2.readthedocs.io/en/latest/FAQ.html)
+
+Its source is in [mageck2-doc](https://github.com/davidliwei/mageck2-doc). The
+command-line reference is generated from this repository's argument parser when
+the site is built, so an option's description is edited here, in
+[`mageck2/argsParser.py`](mageck2/argsParser.py), not there.
 
 
 # MAGeCK
