@@ -63,6 +63,28 @@ def test_building_the_parser_twice_is_safe():
     assert build_parser() is not build_parser()
 
 
+def test_every_option_has_help_text():
+    """An option with no help string documents itself nowhere.
+
+    The reference pages in mageck2-doc are generated from these strings, so an
+    option that ships without one is invisible to users rather than merely
+    terse. Four options were undocumented while the pages were written by hand.
+    """
+    missing = []
+    subparsers = [
+        a for a in build_parser()._actions if isinstance(a, argparse._SubParsersAction)
+    ][0]
+
+    for name, sub in subparsers.choices.items():
+        for action in sub._actions:
+            if action.dest == "help" or action.help is argparse.SUPPRESS:
+                continue
+            if not (action.help or "").strip():
+                missing.append(f"{name} {'/'.join(action.option_strings) or action.dest}")
+
+    assert not missing, "options with no help text: " + ", ".join(sorted(missing))
+
+
 def test_help_does_not_escape_as_an_exception(capsys):
     """`--help` exits cleanly rather than raising something unexpected."""
     with pytest.raises(SystemExit) as excinfo:
