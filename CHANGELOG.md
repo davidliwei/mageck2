@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with a target floor in mind — `(number of genes) / (2 * floor)` permutations
   keep an isolated hit callable at it.
 
+- `tests/test_rra.py` additionally covers RRA's memory and name handling: peak
+  RSS must scale with the screen rather than with a compiled-in worst case, a
+  200-character name must survive intact, an over-long one must be truncated
+  and reported rather than overflowing, and a screen past the initial group
+  capacity must come back complete.
+
 - `tests/test_rra.py`: tests for the bundled RRA helper's own contract. The
   suite reached RRA only through `mageck2 test` and `mageck2 pathway`, and
   asserted little beyond a zero exit status, so nothing pinned down how many
@@ -40,6 +46,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at 1/202 and does not move with the library size.
 
 ### Changed
+
+- RRA allocates for the screen it was given rather than for the largest one
+  imaginable. `MAX_NAME_LEN` was 10,000 and is held inline by every
+  `ITEM_STRUCT` and `GROUP_STRUCT`, so each gene cost 10,056 bytes and each
+  sgRNA 10,040 whatever its name actually was. Peak RSS measured on a
+  single-list screen:
+
+  | genes | before | after |
+  |---|---|---|
+  | 2,000 | 123 MB | 11 MB |
+  | 8,000 | 485 MB | 36 MB |
+  | 20,000 | 1,209 MB | 87 MB |
+  | 60,000 | 3,463 MB | 258 MB |
+
+  `MAX_NAME_LEN` is now 512, which clears the longest names RRA is given
+  (MSigDB gene set ids run to roughly 200 characters), and the three copies
+  into those fields — unbounded `strcpy` before, safe only because the field
+  was 10,000 bytes — are bounded, with over-long names truncated in the output
+  and reported on stderr. Grouping is unaffected, since it keys on the full
+  name. Output is byte-identical on every fixture tested, including ragged
+  sgRNA counts, multiple lists, and comma-joined multi-gene rows. A 20,000-gene
+  screen also runs about 25% faster (0.44 s to 0.33 s), from the smaller
+  `memcpy`s in `QuickSortGroupByLoValue`.
+
+  The groups array additionally starts at 4,096 genes and doubles as the input
+  is counted, instead of reserving `MAX_GROUP_NUM` (100,000) entries up front.
+  That reservation was lazily mapped, so it cost address space rather than
+  resident memory, but it also meant the existing growth path was dead code —
+  it did `delete[]` on a `malloc`-ed pointer and left the caller to `free` a
+  `new[]`-ed one. It is now `realloc` throughout, and it is the normal path for
+  any genome-scale screen.
 
 - `argsParser.build_parser()` builds the command-line parser and returns it;
   `crisprseq_parseargs()` now calls it and then parses. No behavior change — the

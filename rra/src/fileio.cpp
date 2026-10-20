@@ -4,6 +4,8 @@
 #include <map>
 #include <iostream>
 #include <fstream>
+#include <cstring>
+#include <cstdlib>
 using namespace std;
 
 #include "fileio.h"
@@ -23,6 +25,30 @@ int stringSplit(string str, string delim, vector<string> & v){
   if(start<str.length())
     v.push_back(str.substr(start,str.length()-start));
   return v.size();
+}
+
+// Copy a name into one of the fixed MAX_NAME_LEN fields in classdef.h.
+//
+// These copies were unbounded strcpy, which was safe only because the fields
+// were 10,000 bytes wide -- and that width, held inline by every ITEM_STRUCT
+// and GROUP_STRUCT, is what made the groups array cost 1.01 GB. Bounding the
+// copy is what allows the field to be narrow: a longer name is truncated and
+// reported rather than writing past the field.
+static void copyName(char *dest, const string &src, const char *what)
+{
+  if(src.length() >= MAX_NAME_LEN){
+    static bool warned=false;
+    if(!warned){
+      cerr<<"Warning: "<<what<<" names longer than "<<MAX_NAME_LEN-1
+          <<" characters are truncated in the output, starting with \""
+          <<src.substr(0,60)<<"...\". Grouping is unaffected -- it keys on the"
+          <<" full name -- but two names that agree up to that length appear"
+          <<" identical in the output file.\n";
+      warned=true;
+    }
+  }
+  strncpy(dest, src.c_str(), MAX_NAME_LEN-1);
+  dest[MAX_NAME_LEN-1]='\0';
 }
 
 int getGroupListNum(char* fileName, GROUP_STRUCT* &groups, LIST_STRUCT* lists, int maxGroupNum, int maxListNum, int &groupNum, int& listNum, map<string,int>& groupNames, map<string,int>& listNames){
@@ -79,19 +105,26 @@ int getGroupListNum(char* fileName, GROUP_STRUCT* &groups, LIST_STRUCT* lists, i
        //for (i=0;i<tmpGroupNum;i++) if (!strcmp(vsubwords[k].c_str(), groups[i].name))	break;
        string subwstr=vsubwords[k];
        if (groupNames.count(subwstr)==0){
-         strcpy(groups[tmpGroupNum].name, vsubwords[k].c_str());
+         copyName(groups[tmpGroupNum].name, subwstr, "group (gene)");
          groups[tmpGroupNum].itemNum = 1;
          groupNames[subwstr]=tmpGroupNum;
          tmpGroupNum ++;
          if (tmpGroupNum >= maxGroupNum){
-           printf("Warning: too many groups; maxGroupNum = %d\n. Will try to double the maximum number of groups..", maxGroupNum);
-           GROUP_STRUCT* gp2=new GROUP_STRUCT[maxGroupNum*2];
-	   memcpy(gp2,groups,maxGroupNum*sizeof(GROUP_STRUCT));
-	   delete []groups;
-	   maxGroupNum*=2;
-	   groups=gp2;
-
-           //return -1;
+           // Grow on demand: the array starts at INIT_GROUP_NUM rather than
+           // being allocated for the largest input imaginable. realloc, not
+           // new[]/delete[] -- RRA_main malloc()s this array and free()s it, so
+           // the previous new[]/delete[] here was undefined on both sides. It
+           // is safe for GROUP_STRUCT, which holds no owned storage yet at this
+           // point: .items is not allocated until ReadFile returns from here.
+           long newMax = (long)maxGroupNum*2;
+           GROUP_STRUCT* gp2 = (GROUP_STRUCT *)realloc(groups, (size_t)newMax*sizeof(GROUP_STRUCT));
+           if(gp2==NULL){
+             cerr<<"Error: out of memory growing the group array to "<<newMax<<" genes.\n";
+             fh.close();
+             return -1;
+           }
+           groups=gp2;
+           maxGroupNum=(int)newMax;
          }
        }
        else{
@@ -103,7 +136,7 @@ int getGroupListNum(char* fileName, GROUP_STRUCT* &groups, LIST_STRUCT* lists, i
     //for (i=0;i<tmpListNum;i++)	if (!strcmp(vwords[2].c_str(), lists[i].name))	break;
     string thisliststr=vwords[2];
     if (listNames.count(thisliststr)==0){
-      strcpy(lists[tmpListNum].name, vwords[2].c_str());
+      copyName(lists[tmpListNum].name, thisliststr, "list");
       lists[tmpListNum].itemNum = 1;
       listNames[thisliststr]=tmpListNum;
       tmpListNum ++;
@@ -238,7 +271,7 @@ int ReadFile(char *fileName, GROUP_STRUCT* &groups, int maxGroupNum, int *groupN
   		
         //save group name(gene name)
   			//strcpy(groups[i].items[groups[i].itemNum].name,tmpItemName);
-  			strcpy(groups[i].items[groups[i].itemNum].name,vwords[0].c_str());
+  			copyName(groups[i].items[groups[i].itemNum].name, vwords[0], "item (sgRNA)");
   			groups[i].items[groups[i].itemNum].value = tmpValue;
   			groups[i].items[groups[i].itemNum].prob= sgrnaProbValue;
   			groups[i].items[groups[i].itemNum].listIndex = j;

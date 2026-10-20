@@ -24,6 +24,8 @@ PATH.
 
 import shutil
 import subprocess
+import sys
+import textwrap
 
 import numpy as np
 import pytest
@@ -83,6 +85,54 @@ def write_sparse_input(path, ngenes, nhits=1, seed=5):
                         % (gene, i, name, rng.normal(-6.0 if hit else 0.0, 1.0)))
     path.write_text("\n".join(rows) + "\n")
     return {"HIT%d" % g for g in range(nhits)}
+
+
+def write_named_input(path, name_length, ngenes=50, seed=3):
+    """Write an input whose gene names are ``name_length`` characters long.
+
+    ``classdef.h`` stores names in a fixed ``MAX_NAME_LEN`` buffer held inline
+    by every ITEM_STRUCT and GROUP_STRUCT, so its width multiplies by the size
+    of the screen. The tests using this fixture are what allow that buffer to
+    be narrow: they pin down that a realistic long name survives intact and
+    that an over-long one is truncated and reported rather than overflowing.
+    """
+    rng = np.random.default_rng(seed)
+    rows = ["sgrna\tsymbol\tpool\tvalue"]
+    for gene in range(ngenes):
+        name = ("PATHWAY_%d_" % gene).ljust(name_length, "X")[:name_length]
+        for i in range(SGRNAS_PER_GENE):
+            rows.append("sg%d_%d\t%s\tlist\t%.6f"
+                        % (gene, i, name, rng.normal(0.0, 1.0)))
+    path.write_text("\n".join(rows) + "\n")
+    return ngenes
+
+
+def peak_rss_mb(tmp_path, infile, *extra):
+    """Peak resident set size of one RRA run, in MB.
+
+    Measured in a freshly spawned interpreter rather than this one:
+    ``RUSAGE_CHILDREN.ru_maxrss`` is a high-water mark over every child the
+    process has ever reaped, so reading it here would report the largest
+    subprocess any earlier test ran. ``ru_maxrss`` is bytes on macOS and
+    kilobytes on Linux.
+    """
+    outfile = tmp_path / "rss_out.txt"
+    script = textwrap.dedent("""
+        import platform, resource, subprocess, sys
+        rc = subprocess.run(sys.argv[1:], capture_output=True).returncode
+        rss = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+        unit = 1 if platform.system() == "Darwin" else 1024
+        print("%d %.3f" % (rc, rss * unit / 1e6))
+    """)
+    probe = subprocess.run(
+        [sys.executable, "-c", script, "RRA", "-i", str(infile),
+         "-o", str(outfile), "-p", "0.25", "--skip-gene", "NA", *extra],
+        cwd=tmp_path, capture_output=True, text=True,
+    )
+    assert probe.returncode == 0, probe.stderr
+    rc, mb = probe.stdout.split()
+    assert int(rc) == 0, "RRA exited %s under the RSS probe" % rc
+    return float(mb)
 
 
 def run_rra(tmp_path, infile, *extra):
@@ -357,3 +407,112 @@ def test_capping_does_not_change_the_called_gene_set_when_hits_are_dense(tmp_pat
             "capping changed the FDR<=%s gene set too much: Jaccard %.3f "
             "(%d capped, %d uncapped)" % (threshold, jaccard, len(a), len(b))
         )
+
+
+@pytest.mark.skipif(sys.platform.startswith("win"),
+                    reason="resource.getrusage is POSIX-only")
+def test_memory_scales_with_the_input(tmp_path):
+    """Peak RSS must track the screen, not a compiled-in worst case.
+
+    ``MAX_NAME_LEN`` was 10,000, so every gene cost 10,056 bytes and every
+    sgRNA 10,040 whatever its name actually was: an 8,000-gene screen peaked at
+    485 MB and a 20,000-gene one at 1.2 GB, with the per-sgRNA item arrays the
+    larger half of both. The thresholds below are loose -- measured 11 MB and
+    36 MB on this fixture -- because they exist to catch a return to
+    name-buffer-dominated allocation, not to pin an exact figure that would
+    flake on a different allocator.
+    """
+    small, large = tmp_path / "small.txt", tmp_path / "large.txt"
+    write_input(small, 500)
+    write_input(large, 8000)
+
+    small_mb = peak_rss_mb(tmp_path, small, "--permutation", "10")
+    large_mb = peak_rss_mb(tmp_path, large, "--permutation", "10")
+
+    assert large_mb < 200, (
+        "an 8,000-gene screen peaked at %.0f MB; it cost 485 MB when names were "
+        "stored in 10,000-byte buffers" % large_mb
+    )
+    assert small_mb < 60, (
+        "a 500-gene screen peaked at %.0f MB, which is too much to be "
+        "explained by its own size" % small_mb
+    )
+    assert small_mb < large_mb, (
+        "a 16x larger screen used no more memory (%.0f MB vs %.0f MB), so the "
+        "cost is dominated by something fixed rather than by the input"
+        % (large_mb, small_mb)
+    )
+
+
+def test_a_realistic_long_name_survives_intact(tmp_path):
+    """MSigDB gene set ids run to roughly 200 characters and must not truncate.
+
+    This is the lower bound on ``MAX_NAME_LEN``: it is narrow because the
+    buffer is held inline per sgRNA and per gene, but narrowing it past the
+    names RRA is actually given would silently corrupt pathway output.
+    """
+    infile = tmp_path / "in.txt"
+    ngenes = write_named_input(infile, 200)
+
+    stdout, rows = run_rra(tmp_path, infile)
+
+    assert len(rows) == ngenes
+    assert max(len(name) for name in rows) == 200
+    assert "truncated" not in stdout
+
+
+def test_an_over_long_name_is_truncated_and_reported(tmp_path):
+    """A name wider than the field must be bounded, and said out loud.
+
+    The three copies into these fields were unbounded ``strcpy``, which only a
+    10,000-byte field made safe. Narrowing the field without bounding the copy
+    would have turned an over-long name into a buffer overflow, so this test is
+    the one that holds the bound in place.
+    """
+    infile = tmp_path / "in.txt"
+    ngenes = write_named_input(infile, 2000)
+
+    result = subprocess.run(
+        ["RRA", "-i", str(infile), "-o", str(tmp_path / "out.txt"),
+         "-p", "0.25", "--skip-gene", "NA"],
+        cwd=tmp_path, capture_output=True, text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "truncated" in result.stdout + result.stderr, (
+        "an over-long name was accepted without a word about truncation"
+    )
+
+    rows = {}
+    for line in (tmp_path / "out.txt").read_text().splitlines()[1:]:
+        f = line.split("\t")
+        rows[f[0]] = int(f[1])
+    # Grouping keys on the full name via a std::map, so the genes stay distinct
+    # even though their printed names are cut; only the labels collide.
+    assert sum(rows.values()) == ngenes * SGRNAS_PER_GENE
+    assert max(len(name) for name in rows) < 2000
+
+
+def test_a_library_larger_than_the_initial_capacity_is_complete(tmp_path):
+    """The groups array starts small and is grown; nothing may be lost.
+
+    ``INIT_GROUP_NUM`` is 4,096, so this screen forces several reallocations
+    during the counting pass. That path previously did ``delete[]`` on a
+    ``malloc``-ed pointer, and the array was never grown in practice because it
+    was allocated at the maximum up front; now it is the normal path for any
+    genome-scale screen.
+    """
+    infile = tmp_path / "in.txt"
+    hits = write_input(infile, 9000)
+
+    _, rows = run_rra(tmp_path, infile, "--permutation", "10")
+
+    assert len(rows) == 9000, "expected 9,000 genes, got %d" % len(rows)
+    assert all(rows["GENE%d" % g][0] >= 0.0 for g in range(9000))
+
+    ranked = sorted(rows, key=lambda g: rows[g][0])
+    top = set(ranked[: len(hits)])
+    assert len(top & hits) / len(hits) >= 0.9, (
+        "growing the array disturbed the ranking: %d of %d hits recovered"
+        % (len(top & hits), len(hits))
+    )

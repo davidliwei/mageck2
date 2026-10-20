@@ -10,9 +10,20 @@
 #define NDEBUG
 #include <assert.h>
 
-#define MAX_NAME_LEN 10000           //maximum length of item name, group name or list name
+// Size of the fixed name buffer held inline by all three structs below, so it
+// multiplies by the number of sgRNAs and genes rather than being paid once. At
+// 10000 it made GROUP_STRUCT 10,056 bytes and the groups array 1.01 GB. The
+// longest names RRA sees are MSigDB gene set ids, which run to roughly 200
+// characters; longer ones are truncated with a warning by copyName() in
+// fileio.cpp rather than overflowing, which is what the unbounded strcpy calls
+// it replaced would have done.
+#define MAX_NAME_LEN 512             //maximum length of item name, group name or list name
 #define CDF_MAX_ERROR 1E-10        //maximum error in Cumulative Distribution Function estimation in beta statistics
-#define MAX_GROUP_NUM 100000       //maximum number of groups
+
+// Initial capacity of the groups array, not a limit: getGroupListNum() doubles
+// it as needed while counting the input. It used to be allocated at
+// MAX_GROUP_NUM up front, which cost 1.01 GB whatever the input contained.
+#define INIT_GROUP_NUM 4096        //initial number of groups; grown on demand
 #define MAX_LIST_NUM 1000          //maximum number of list 
 #define RAND_PASS_NUM 100          //number of passes in random simulation for computing FDR
 
