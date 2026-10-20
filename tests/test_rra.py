@@ -7,12 +7,15 @@ performs, what p value resolution that buys, or what that resolution costs in
 achievable significance. This file covers that, so a change to the permutation
 accounting has to state its effect rather than slip through.
 
-The invariant worth protecting is the one in ``test_adjusted_p_floor_is_library
-_size_independent``: the permutation count scales with the number of genes, and
-``calculateFDRVector`` divides by that same number, so the smallest adjusted p
-value a single strong hit can reach is fixed at about 0.005 whatever the library
-size. A ceiling on the permutation count breaks that cancellation, which is the
-cost ``--max-permutation-per-group`` trades run time for.
+The invariant worth protecting is the one in
+``test_adjusted_p_floor_is_library_size_independent``. Two factors of the gene
+count cancel: the raw p value floor is ``1/(2N)`` and the permutation count
+``N`` scales with the number of genes, while ``calculateFDRVector``
+(``RRA.cpp:811``) multiplies that p value back up by the same number of genes.
+So the smallest adjusted p value a single strong hit can reach is fixed at
+about 0.005 whatever the library size. A ceiling on the permutation count
+breaks the cancellation, leaving only the multiplication, which is the cost
+``--max-permutation-per-group`` trades run time for.
 
 RRA is invoked as a subprocess by bare name, exactly as ``crisprFunction.py``
 invokes it, so these tests exercise whichever build ``conftest.py`` put first on
