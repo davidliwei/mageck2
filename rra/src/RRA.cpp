@@ -47,14 +47,27 @@ int min_number_goodsgrna=0;
 
 int max_sgnum_permutation_by_group=100; // the maximum number of sgRNA/gene to perform perumtation by group
 
-// Ceiling on the permutations performed for each distinct sgRNA-per-gene count.
-// The count below is derived from the number of genes, but the p value
-// resolution it buys does not depend on the library size, so without a ceiling
-// a genome-wide screen permuted far past any resolution an FDR threshold can
-// use: 2.02 million permutations per group for 20,000 genes, resolving p to
-// 2.5e-07. 500,000 resolves p to 1e-06 and moves the called gene set no more
-// than changing the random seed does.
-long max_permutation_per_group=500000;
+// Optional ceiling on the permutations performed for each distinct
+// sgRNA-per-gene count. Zero, the default, means no ceiling.
+//
+// There is a reason to think twice before setting one. The count is
+// (rand_passnum + 1) * groupNum, so it scales with the number of genes, and
+// calculateFDRVector multiplies the smallest p value by that same number of
+// genes. For a gene that beats the entire null distribution the two cancel:
+// its adjusted p value is groupNum / (2 * (rand_passnum + 1) * groupNum), or
+// 1 / (2 * (rand_passnum + 1)) -- about 0.005 at the default rand_passnum of
+// 100, whatever the library size. The scaling is what holds that floor fixed.
+//
+// A ceiling breaks the cancellation, so the smallest reachable adjusted p
+// value becomes groupNum / (2 * max_permutation_per_group) and now grows with
+// the library. 500,000 permutations over 60,000 genes puts it at 0.06, which
+// is to say no gene in such a screen can be called at FDR 0.05 however strong
+// it is. Screens with many hits do not show this, because the block of genes
+// tied at the p value floor is pulled down by the step-down pass; a screen
+// with one real hit shows it immediately. Set a ceiling only with a target
+// floor in mind: groupNum / (2 * desired floor) permutations are needed to
+// keep an isolated hit callable at it.
+long max_permutation_per_group=0;
 
 //Function declarations
 
@@ -261,19 +274,22 @@ int RRA_main (vector<string> & argv) {
     cout<<"Increase the number of permutations to "<<rand_passnum<<" to get precise p values. To avoid this, use the --permutation option.\n";
   }
 
-  // The floor above has no matching ceiling. ComputePermutation{,byNumSG} run
+  // Apply the ceiling, if one was asked for. ComputePermutation{,byNumSG} run
   // (numOfRandPass/groupNum + 1) * groupNum permutations per group, i.e.
-  // (rand_passnum + 1) * groupNum, so the count grew with the library while the
-  // resolution it buys did not. Bound it, unless the caller asked for a count.
-  if(has_specified_rand_passnum_parameter==false
-     && (long)rand_passnum*groupNum > max_permutation_per_group){
+  // (rand_passnum + 1) * groupNum; it is that count, not rand_passnum*groupNum,
+  // that has to be compared against the ceiling, or the ceiling is exceeded by
+  // one pass and the message below contradicts the p values.
+  if(max_permutation_per_group>0
+     && has_specified_rand_passnum_parameter==false
+     && (long)(rand_passnum+1)*groupNum > max_permutation_per_group){
     // The kernels permute in whole multiples of groupNum, so the smallest
     // count they can express is 2*groupNum. A ceiling below that is raised to
     // it; the message below reports the count actually used, not the request.
     rand_passnum=(int)(max_permutation_per_group/groupNum)-1;
     if(rand_passnum<1) rand_passnum=1;
     cout<<"Capping permutations at "<<(long)(rand_passnum+1)*groupNum
-        <<" per sgRNA-count group. Use --permutation to override.\n";
+        <<" per sgRNA-count group, as requested by"
+        <<" --max-permutation-per-group "<<max_permutation_per_group<<".\n";
   }
   
   if(permutation_by_group){
@@ -338,7 +354,7 @@ void PrintCommandUsage(const char *command)
 	printf("--min-percentage-goodsgrna <min percentage>. Filter genes that have too few percentage of 'good sgrnas', or sgrnas that fall below the -p threshold. Must be a number between 0-1. Default 0 (do not filter genes).\n");
 	printf("--min-number-goodsgrna <min number>. Filter genes that have too few number of 'good sgrnas', or sgrnas that fall below the -p threshold. Must be an integer. Default 0 (do not filter genes). \n");
 	printf("--max-sgrnapergene-permutation <max number>. Only permute genes by group if the number of sgRNAs per gene is smaller than this number. This will save a lot of time if some regions are targeted by a large number of sgRNAs (usually hundreds). Must be an integer. Default 100. \n");
-	printf("--max-permutation-per-group <max number>. Upper bound on the permutations performed for each distinct sgRNA-per-gene count. Without it the number of permutations grows with the number of genes, well past the resolution any FDR threshold uses. Ignored if --permutation is given. Permutations happen in multiples of the number of genes, so a bound below twice that is raised to it. Must be an integer. Default 500000. \n");
+	printf("--max-permutation-per-group <max number>. Upper bound on the permutations performed for each distinct sgRNA-per-gene count, trading run time for p value resolution. Lowering it raises the smallest adjusted p value any gene can reach, to (number of genes)/(2*this number) for a gene that beats the whole null distribution, so a bound that is too low can make a strong hit uncallable at the FDR threshold you intend to use. Ignored if --permutation is given. Permutations happen in multiples of the number of genes, so a bound below twice that is raised to it. Must be an integer. Default 0, meaning no bound. \n");
 	printf("example:\n");
 	printf("%s -i input.txt -o output.txt -p 0.1 \n", command);
 	
