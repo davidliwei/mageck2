@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `RRA --max-permutation-per-group <n>`: an optional upper bound on the
+  permutations performed for each distinct sgRNA-per-gene count, trading run
+  time for p value resolution. There is no bound by default, and the option is
+  ignored when `--permutation` is given explicitly. A 20,000-gene screen
+  performs 2.02 million permutations per group and spends 2.7 s per RRA call
+  doing it, twice per comparison in `mageck2 test`; bounding it at 500,000
+  brings that to 0.76 s.
+
+  The bound is opt-in because it is not free, and the cost is easy to miss.
+  `calculateFDRVector` multiplies the smallest p value by the number of tested
+  genes, and the permutation count scales with that same number, so for a gene
+  that beats the entire null distribution the two cancel and its adjusted p
+  value is `1 / (2 * (rand_passnum + 1))` — about 0.005 whatever the library
+  size. A fixed bound breaks the cancellation: the smallest reachable adjusted
+  p value becomes `(number of genes) / (2 * bound)`, which for 60,000 genes
+  against a 500,000 bound is 0.06, so no gene in such a screen could be called
+  at FDR 0.05 however strong it was. Screens with many hits do not show this,
+  because the block of genes tied at the p value floor is pulled down by the
+  step-down pass; a screen with one real hit shows it at once. Set the option
+  with a target floor in mind — `(number of genes) / (2 * floor)` permutations
+  keep an isolated hit callable at it.
+
+- `tests/test_rra.py`: tests for the bundled RRA helper's own contract. The
+  suite reached RRA only through `mageck2 test` and `mageck2 pathway`, and
+  asserted little beyond a zero exit status, so nothing pinned down how many
+  permutations RRA performs, what p value resolution that buys, or what that
+  resolution costs in achievable significance. The last of those is now an
+  explicit invariant: the adjusted p value floor for an isolated hit is fixed
+  at 1/202 and does not move with the library size.
+
 ### Changed
 
 - `argsParser.build_parser()` builds the command-line parser and returns it;
