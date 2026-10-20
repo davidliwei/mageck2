@@ -7,7 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `tests/test_rra.py`: tests for the bundled RRA helper's own contract. The
+  suite reached RRA only through `mageck2 test` and `mageck2 pathway`, and
+  asserted little beyond a zero exit status, so nothing pinned down how many
+  permutations RRA performs, what p value resolution that buys, or whether the
+  gene set it calls survives a change to that count.
+
 ### Changed
+
+- RRA now caps the permutations it performs for each distinct sgRNA-per-gene
+  count at 500,000, adjustable with `--max-permutation-per-group` and ignored
+  when `--permutation` is given explicitly. `RRA.cpp` floored the permutation
+  count at 100,000 but never bounded it, and the count it derives grows with the
+  number of genes — `(rand_passnum + 1) * groupNum` per group — even though the
+  p value resolution that buys does not depend on the library size. A
+  20,000-gene screen was performing 2.02 million permutations per group,
+  resolving p to 2.5e-07, and spending 2.7 s per RRA call to do it; `mageck2
+  test` calls RRA twice per comparison. Capped, the same screen takes 0.76 s
+  (3.5x faster) and resolves p to 1e-06, still two orders of magnitude finer
+  than any FDR threshold applied to it.
+
+  Permutation p values move slightly, as they do between any two random seeds.
+  On a 20,000-gene library the capped and uncapped gene sets agree to Jaccard
+  0.978 at FDR 0.01 and 0.996 at FDR 0.05 — the same agreement two runs of the
+  *uncapped* code reach under different seeds, so the cap moves the result no
+  more than reseeding it does. Libraries below ~5,000 genes are unaffected: the
+  cap does not fire, and the existing floor still raises the count for small
+  ones.
 
 - `argsParser.build_parser()` builds the command-line parser and returns it;
   `crisprseq_parseargs()` now calls it and then parses. No behavior change — the
