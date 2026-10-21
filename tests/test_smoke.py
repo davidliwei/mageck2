@@ -1163,8 +1163,8 @@ def _write_umi_fixture(tmp_path, umi_on="second", trailing=True, nread=200):
         umi = "".join(rng.choice("ACGT") for _ in range(8))
         if umi_on == "first":
             r1.append(guide + umi)
-            # variable read 2: the search finds a start here but never an end,
-            # which is the (0, -1) failure value the guard has to reject
+            # Keep read 2 variable too, so the selected first-read window
+            # proves that automatic detection did not fall back to read 2.
             r2.append("".join(rng.choice("ACGT") for _ in range(20)))
         else:
             r1.append(guide + (const if trailing else ""))
@@ -1259,11 +1259,33 @@ def test_umi_auto_fails_loudly_when_no_variable_region_is_found(tmp_path):
     a search that set both bounds has found anything. See issue #29.
     """
     _write_umi_fixture(tmp_path, umi_on="first")
+    # Both searched regions must actually be constant. A random UMI reaching
+    # the read end is a valid window, covered separately below (issue #34).
+    for filename, prefix in [("r1.fastq", 20), ("r2.fastq", 0)]:
+        path = tmp_path / filename
+        lines = path.read_text().splitlines()
+        for i in range(1, len(lines), 4):
+            lines[i] = lines[i][:prefix] + "A" * (len(lines[i]) - prefix)
+        path.write_text("\n".join(lines) + "\n")
     result = _run_count(tmp_path, ["--umi", "auto"])
 
     assert result.returncode != 0, "a failed UMI search was reported as success"
     assert "ailed" in result.stderr
     assert not (tmp_path / "out.umi_count.txt").exists()
+
+
+def test_umi_auto_recovers_terminal_first_read_window(tmp_path):
+    """Automatic terminal UMI counts must match an explicit [0, 8) window."""
+    _write_umi_fixture(tmp_path, umi_on="first")
+    result = _run_count(tmp_path, ["--umi", "auto"])
+    assert result.returncode == 0, result.stderr
+    assert "UMI found in the first read. Position (after guide): 0-8" in result.stderr
+    auto_counts = (tmp_path / "out.umi_count.txt").read_text()
+    assert len(auto_counts.splitlines()) > 1
+
+    result = _run_count(tmp_path, ["--umi", "firstpair", "--umi-start", "0", "--umi-end", "8"])
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "out.umi_count.txt").read_text() == auto_counts
 
 
 def test_umi_auto_reports_reads_with_nothing_after_the_guide(tmp_path):
