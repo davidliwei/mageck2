@@ -97,6 +97,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Count summaries handle singleton and zero-total count vectors with a Gini
+  index of zero, avoiding a division by zero or negative QC values (#48).
+
 - Automatic UMI detection now includes the final read position and closes a
   variable region at the read end, allowing terminal UMIs to be counted (#34).
 
