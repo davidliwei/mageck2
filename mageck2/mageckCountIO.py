@@ -33,7 +33,7 @@ def mageckcount_search_variable_region(seqlist):
   Return value
   ----------
   (start,end)
-    A variable region containing guides/UMIs in the seqlist
+    A variable region containing guides/UMIs in the seqlist, with an exclusive end
   '''
   count_freq={}
   for seq in seqlist:
@@ -55,12 +55,13 @@ def mageckcount_search_variable_region(seqlist):
   if len(count_freq)==0:
     # nothing follows the guide on these reads, so there is no region to search
     return (var_start,var_end)
+  sequence_end=max(count_freq.keys())+1
   logging.info('--count-freq data for UMI search (A/T/G/C):')
-  for x in range(max(count_freq.keys())):
+  for x in range(sequence_end):
     logging.info('  '+str(x)+'\t'+'/'.join([str(s) for s in count_freq[x]]))
   
   # search for start
-  for x in range(max(count_freq.keys())):
+  for x in range(sequence_end):
     freq_vec=count_freq[x]
     freq_t_sum=max(sum(freq_vec),1)
     freq_f=[y/freq_t_sum for y in freq_vec]
@@ -68,7 +69,8 @@ def mageckcount_search_variable_region(seqlist):
       var_start=x
       break
   if var_start>=0:
-    for x in range(var_start+1,max(count_freq.keys())):
+    var_end=sequence_end
+    for x in range(var_start+1,sequence_end):
       freq_vec=count_freq[x]
       freq_t_sum=max(sum(freq_vec),1)
       freq_f=[y/freq_t_sum for y in freq_vec]
