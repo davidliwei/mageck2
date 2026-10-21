@@ -55,6 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Count summaries handle singleton and zero-total count vectors with a Gini
+  index of zero, avoiding a division by zero or negative QC values (#48).
+
 - Three typos in help text users see: `beta_0` was spelled `bata_0`
   (`mle -b/--beta-labels`), `integer` as `interger` (`mle --permutation-round`),
   and `permutation` as `perumtation` (`pathway --permutation`). Also the grammar

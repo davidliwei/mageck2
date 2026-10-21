@@ -13,13 +13,16 @@ def mageckcount_gini(x):
   '''
   Return the Gini index of an array
   Calculation is based on http://en.wikipedia.org/wiki/Gini_coefficient
+  Empty, singleton, and all-zero vectors have index 0 by convention.
   '''
   xs=sorted(x)
   n=len(xs)
+  if n<=1:
+    return 0.0
   gssum=sum([ (i+1.0)*xs[i] for i in range(n)])
   ysum=sum(xs)
   if ysum==0.0:
-    ysum=1.0
+    return 0.0
   gs=1.0-2.0*(n-gssum/ysum)/(n-1)
   return gs
 
