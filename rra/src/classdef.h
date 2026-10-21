@@ -16,7 +16,8 @@
 // longest names RRA sees are MSigDB gene set ids, which run to roughly 200
 // characters; longer ones are truncated with a warning by copyName() in
 // fileio.cpp rather than overflowing, which is what the unbounded strcpy calls
-// it replaced would have done.
+// it replaced would have done. Anything compared against one of these fields
+// has to be cut to the same width first -- see nameAsStored() in fileio.h.
 #define MAX_NAME_LEN 512             //maximum length of item name, group name or list name
 #define CDF_MAX_ERROR 1E-10        //maximum error in Cumulative Distribution Function estimation in beta statistics
 

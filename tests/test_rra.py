@@ -516,3 +516,75 @@ def test_a_library_larger_than_the_initial_capacity_is_complete(tmp_path):
         "growing the array disturbed the ranking: %d of %d hits recovered"
         % (len(top & hits), len(hits))
     )
+
+
+def write_long_identifier_input(path, name_length, ngenes=40, seed=9):
+    """Write an input carrying one over-long gene name and over-long sgRNA ids.
+
+    The long names differ from each other well inside the first
+    ``MAX_NAME_LEN-1`` characters, which is the case that has to keep working:
+    identifiers are stored truncated, so anything matched against them --
+    ``--control`` and ``--skip-gene`` -- has to be cut at the same point or the
+    match is lost without a word. Returns the full, untruncated identifiers.
+    """
+    rng = np.random.default_rng(seed)
+    rows = ["sgrna\tsymbol\tpool\tvalue"]
+    for gene in range(ngenes):
+        for i in range(SGRNAS_PER_GENE):
+            rows.append("sg%d_%d\tGENE%d\tlist\t%.6f"
+                        % (gene, i, gene, rng.normal(0.0, 1.0)))
+
+    # Distinguishing character at position 8, far inside the kept prefix.
+    sgrnas = [("CTRL_%d_" % i).ljust(name_length, "C")[:name_length]
+              for i in range(SGRNAS_PER_GENE)]
+    gene = "LONGGENE_".ljust(name_length, "G")[:name_length]
+    for name in sgrnas:
+        rows.append("%s\t%s\tlist\t%.6f" % (name, gene, rng.normal(-6.0, 1.0)))
+
+    path.write_text("\n".join(rows) + "\n")
+    return gene, sgrnas
+
+
+def test_a_long_control_sgrna_is_still_matched(tmp_path):
+    """``--control`` entries must match names the input stored truncated.
+
+    ``loadControlSeq`` keys a ``std::map`` on the control file's lines and
+    ``ProcessGroups`` looks up ``ITEM_STRUCT::name`` in it. That field is
+    ``MAX_NAME_LEN`` wide, so an over-long id is stored cut; looking it up at
+    full length found nothing, and RRA went on to permute against an empty
+    control distribution -- reading ``control_prob_array[-1]`` to do it.
+    Reported by Codex on davidliwei/mageck2#47.
+    """
+    infile = tmp_path / "in.txt"
+    _, sgrnas = write_long_identifier_input(infile, 600)
+    control = tmp_path / "control.txt"
+    control.write_text("\n".join(sgrnas))
+
+    stdout, _ = run_rra(tmp_path, infile, "--permutation", "10",
+                        "--control", str(control))
+
+    assert "Total # control sgRNAs: %d" % SGRNAS_PER_GENE in stdout, (
+        "over-long control sgRNAs were not matched:\n%s" % stdout
+    )
+
+
+def test_a_long_skipped_gene_is_still_skipped(tmp_path):
+    """``--skip-gene`` must match a gene name the input stored truncated.
+
+    Same mismatch as the control list, on ``GROUP_STRUCT::name``: the gene was
+    silently permuted and reported with a real p value instead of being held
+    out. The planted gene is depleted hard enough that failing to skip it is
+    unmistakable.
+    """
+    infile = tmp_path / "in.txt"
+    gene, _ = write_long_identifier_input(infile, 600)
+
+    _, rows = run_rra(tmp_path, infile, "--permutation", "10",
+                      "--skip-gene", gene)
+
+    stored = [name for name in rows if name.startswith("LONGGENE_")]
+    assert len(stored) == 1, "expected one long-named gene, got %r" % stored
+    lo, p, fdr = rows[stored[0]]
+    assert p == 1.0 and fdr == 1.0, (
+        "an over-long --skip-gene name was not skipped: p=%g FDR=%g" % (p, fdr)
+    )

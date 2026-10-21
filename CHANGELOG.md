@@ -34,8 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_rra.py` additionally covers RRA's memory and name handling: peak
   RSS must scale with the screen rather than with a compiled-in worst case, a
   200-character name must survive intact, an over-long one must be truncated
-  and reported rather than overflowing, and a screen past the initial group
-  capacity must come back complete.
+  and reported rather than overflowing, a screen past the initial group
+  capacity must come back complete, and an over-long name must still be matched
+  by `--control` and by `--skip-gene`.
 
 - `tests/test_rra.py`: tests for the bundled RRA helper's own contract. The
   suite reached RRA only through `mageck2 test` and `mageck2 pathway`, and
@@ -65,7 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   into those fields — unbounded `strcpy` before, safe only because the field
   was 10,000 bytes — are bounded, with over-long names truncated in the output
   and reported on stderr. Grouping is unaffected, since it keys on the full
-  name. Output is byte-identical on every fixture tested, including ragged
+  name; `--control` and `--skip-gene` are matched against the stored, truncated
+  form, so they keep working at any name length. Two names that agree over the
+  first 511 characters are indistinguishable to all three of those, which is
+  what the stderr warning says. Output is byte-identical on every fixture
+  tested, including ragged
   sgRNA counts, multiple lists, and comma-joined multi-gene rows. A 20,000-gene
   screen also runs about 25% faster (0.44 s to 0.33 s), from the smaller
   `memcpy`s in `QuickSortGroupByLoValue`.

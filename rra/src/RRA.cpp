@@ -136,7 +136,9 @@ int loadControlSeq(const char* fname){
     //oneline.erase( remove(oneline.begin(), oneline.end(), '\r'), oneline.end() );
     //oneline.erase( remove(oneline.begin(), oneline.end(), '\n'), oneline.end() );
     //cout<<oneline<<"#"<<oneline.size()<<endl;
-    ControlSeqMap[oneline]=ncount;
+    // Truncated to match what ITEM_STRUCT::name will hold, so that the
+    // lookup in ProcessGroups compares like with like.
+    ControlSeqMap[nameAsStored(oneline)]=ncount;
 
     ncount++;
   }
@@ -203,7 +205,9 @@ int RRA_main (vector<string> & argv) {
        has_specified_rand_passnum_parameter=true;
      }
      if (argv[i-1] == "--skip-gene"){
-	string sn(argv[i]);
+        // Truncated to match what GROUP_STRUCT::name will hold; the lookups in
+        // ComputePermutation* compare against that field, not against argv.
+	string sn(nameAsStored(argv[i]));
 	cout<<"Skipping gene "<<sn<<" for permutation ..."<<endl;
        gene_to_skip[sn]=0;
      }

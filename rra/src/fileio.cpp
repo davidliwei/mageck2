@@ -27,6 +27,13 @@ int stringSplit(string str, string delim, vector<string> & v){
   return v.size();
 }
 
+// Truncate a name the way the fixed-width fields store it. Declared in fileio.h;
+// see there for why the comparison sites need it.
+string nameAsStored(const string &name)
+{
+  return name.length() >= MAX_NAME_LEN ? name.substr(0, MAX_NAME_LEN-1) : name;
+}
+
 // Copy a name into one of the fixed MAX_NAME_LEN fields in classdef.h.
 //
 // These copies were unbounded strcpy, which was safe only because the fields
@@ -40,10 +47,11 @@ static void copyName(char *dest, const string &src, const char *what)
     static bool warned=false;
     if(!warned){
       cerr<<"Warning: "<<what<<" names longer than "<<MAX_NAME_LEN-1
-          <<" characters are truncated in the output, starting with \""
+          <<" characters are truncated to that length, starting with \""
           <<src.substr(0,60)<<"...\". Grouping is unaffected -- it keys on the"
-          <<" full name -- but two names that agree up to that length appear"
-          <<" identical in the output file.\n";
+          <<" full name -- but two names that agree up to that length are"
+          <<" indistinguishable in the output file and to --control and"
+          <<" --skip-gene, which are matched against the truncated form.\n";
       warned=true;
     }
   }
