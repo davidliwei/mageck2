@@ -136,7 +136,9 @@ int loadControlSeq(const char* fname){
     //oneline.erase( remove(oneline.begin(), oneline.end(), '\r'), oneline.end() );
     //oneline.erase( remove(oneline.begin(), oneline.end(), '\n'), oneline.end() );
     //cout<<oneline<<"#"<<oneline.size()<<endl;
-    ControlSeqMap[oneline]=ncount;
+    // Truncated to match what ITEM_STRUCT::name will hold, so that the
+    // lookup in ProcessGroups compares like with like.
+    ControlSeqMap[nameAsStored(oneline)]=ncount;
 
     ncount++;
   }
@@ -203,7 +205,9 @@ int RRA_main (vector<string> & argv) {
        has_specified_rand_passnum_parameter=true;
      }
      if (argv[i-1] == "--skip-gene"){
-	string sn(argv[i]);
+        // Truncated to match what GROUP_STRUCT::name will hold; the lookups in
+        // ComputePermutation* compare against that field, not against argv.
+	string sn(nameAsStored(argv[i]));
 	cout<<"Skipping gene "<<sn<<" for permutation ..."<<endl;
        gene_to_skip[sn]=0;
      }
@@ -245,14 +249,20 @@ int RRA_main (vector<string> & argv) {
     return -1;
   }
   
-  groups = (GROUP_STRUCT *)malloc(MAX_GROUP_NUM*sizeof(GROUP_STRUCT));
+  // INIT_GROUP_NUM, not a worst-case bound: getGroupListNum grows the array as
+  // it counts the input, so a small screen no longer pays for a large one.
+  // NDEBUG is defined in classdef.h, so the asserts below compile to nothing --
+  // check the allocations for real.
+  groups = (GROUP_STRUCT *)malloc(INIT_GROUP_NUM*sizeof(GROUP_STRUCT));
   lists = (LIST_STRUCT *)malloc(MAX_LIST_NUM*sizeof(LIST_STRUCT));
-  assert(groups!=NULL);
-  assert(lists!=NULL);
+  if(groups==NULL || lists==NULL){
+    cerr<<"Error: out of memory allocating the group and list arrays.\n";
+    return -1;
+  }
   
   printf("Reading input file...\n");
   
-  flag = ReadFile(inputFileName, groups, MAX_GROUP_NUM, &groupNum, lists, MAX_LIST_NUM, &listNum);
+  flag = ReadFile(inputFileName, groups, INIT_GROUP_NUM, &groupNum, lists, MAX_LIST_NUM, &listNum);
   
   if (flag<=0){
     cerr<<"\nError: reading ranking file ...\n";
