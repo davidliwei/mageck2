@@ -97,6 +97,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Automatic UMI detection now includes the final read position and closes a
+  variable region at the read end, allowing terminal UMIs to be counted (#34).
+
 - Three typos in help text users see: `beta_0` was spelled `bata_0`
   (`mle -b/--beta-labels`), `integer` as `interger` (`mle --permutation-round`),
   and `permutation` as `perumtation` (`pathway --permutation`). Also the grammar
