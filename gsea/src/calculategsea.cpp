@@ -5,10 +5,10 @@
 #include <map>
 #include <vector>
 #include <sstream>
-#include <ctime>
 #include <algorithm>
 #include <cstdlib>
 #include "math_api.h"
+#include "rngs.h"
 
 using namespace std;
 using namespace TCLAP;
@@ -23,7 +23,16 @@ struct CallingArgs{
   int scorecolumn; //column for scoring
   bool reverse; // whether we need to reverse the order of the gene
   bool skipheader; // skip the first (header) line of the rank file
+  int seed; // seed for the permutation random number generator
 };
+
+//Default seed for the permutation test. Fixed, so that a run is reproducible
+//without having to pass --seed; RRA seeds its own permutations with the same
+//value. The generator is the bundled Lehmer one in rngs.cpp, whose state must
+//stay in 1..MODULUS-1: PutSeed reduces a seed modulo MODULUS, and a seed of 0
+//is a fixed point that would make Random() return 0 forever.
+const int GSEA_DEFAULT_SEED=123456;
+const int GSEA_MAX_SEED=2147483646; // MODULUS-1 in rngs.cpp
 
 typedef map<string, vector<string> > pathmap;
 
@@ -91,6 +100,8 @@ int parseArguments(int argc, char* argv[],CallingArgs& args){
     cmd.add(reversearg);
     SwitchArg skipheaderarg("H","skip_header","Skip the first (header) line of the rank file.");
     cmd.add(skipheaderarg);
+    ValueArg<int> seedarg("","seed","Seed for the permutation test, between 1 and 2147483646. Runs with the same seed and the same input produce the same permutation p values; vary it across runs to measure how much Monte Carlo noise those p values carry. Default 123456.",false,GSEA_DEFAULT_SEED,"seed");
+    cmd.add(seedarg);
 
     cmd.parse(argc,argv);
 
@@ -103,6 +114,12 @@ int parseArguments(int argc, char* argv[],CallingArgs& args){
     args.scorecolumn=scorecolumnarg.getValue();
     args.reverse=reversearg.getValue();
     args.skipheader=skipheaderarg.getValue();
+    args.seed=seedarg.getValue();
+    if(args.seed<1 || args.seed>GSEA_MAX_SEED){
+      cerr<<"Error: --seed must be between 1 and "<<GSEA_MAX_SEED
+          <<"; got "<<args.seed<<"."<<endl;
+      exit(1);
+    }
     
   }catch(ArgException &e){
     cerr<<"error: "<<e.error()<<" for arg "<<e.argId();
@@ -395,7 +412,13 @@ gs_ret getscoreandp( string pathname, double & pval, CallingArgs & args){
     checkred.clear();
     int nsp=0;
     while(nsp<index.size()){
-      int cid=int(rand()*1.0/RAND_MAX*nsz);
+      // Random() returns a value in (0,1) -- rngs.cpp keeps its state in
+      // 1..MODULUS-1 and divides by MODULUS -- so cid stays below nsz. The
+      // clamp is kept because the expression it replaces did not: rand() can
+      // return RAND_MAX, and rand()*1.0/RAND_MAX*nsz is then exactly nsz, so
+      // GSCORE[nsz] was read out of bounds roughly once in every 2^31 draws.
+      int cid=(int)(Random()*nsz);
+      if(cid>=nsz) cid=nsz-1;
       if(checkred.count(cid)==0){
         checkred[cid]=1;
         index[nsp]=cid;
@@ -426,8 +449,9 @@ int init_vec(CallingArgs &args){
   
   cerr<<"rank size:"<<GNAME.size()<<endl;
   cerr<<"Permutations:"<<args.perms<<endl;
-  
-  srand(time(NULL));
+  cerr<<"Permutation seed:"<<args.seed<<endl;
+
+  PlantSeeds(args.seed);
   // create the index
   for(int i=0;i<GNAME.size();i++)
     GNAMEINDEX[GNAME[i]]=i;

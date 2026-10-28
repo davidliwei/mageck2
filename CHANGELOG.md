@@ -46,6 +46,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicit invariant: the adjusted p value floor for an isolated hit is fixed
   at 1/202 and does not move with the library size.
 
+- `mageckGSEA --seed <int>`: the seed for the permutation test, between 1 and
+  2147483646, default 123456. The seed is reported in the run log, so an output
+  file can be traced back to the stream that produced it. Varying it across runs
+  is how to measure the Monte Carlo noise the permutation p values carry; the
+  enrichment score and the analytic p value do not depend on it.
+
+- `tests/test_gsea.py`: tests for the bundled mageckGSEA helper's permutation
+  contract. The suite checked that scores and p values were well formed but
+  never that a run was repeatable, which it was not. The regression test lets
+  the clock tick over between the two runs it compares, because the old seeding
+  read the clock in whole seconds and two runs inside the same second agreed
+  even with the bug present.
+
 ### Changed
 
 - RRA allocates for the screen it was given rather than for the largest one
@@ -96,6 +109,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   column index is 0-based rather than leaving it to be inferred from the default.
 
 ### Fixed
+
+- `mageckGSEA` permutation p values are reproducible. The permutation test was
+  seeded with `srand(time(NULL))` and drew with `rand()`, so two identical
+  invocations more than a second apart disagreed: on a 50-pathway GMT against a
+  5,000-gene ranking, `p_permutation` differed for 45 of the 50 pathways, `FDR`
+  for all 50, and the reported ranking for 31. A pathway result could not be
+  reproduced, including by whoever produced it. Permutations now run on the
+  bundled Lehmer generator in `rngs.cpp` -- the one RRA already seeds with the
+  same constant -- so a run is a function of its inputs and of `--seed`.
+  `ES`, the analytic `p`, `Hits` and `LFC` are unaffected, since none of them
+  were ever drawn from the generator; `p_permutation`, `FDR` and `Ranking` will
+  not match what earlier versions reported, which is the point.
+
+- `mageckGSEA` no longer reads one element past the end of the score vector
+  while permuting. `rand()` may return `RAND_MAX`, and the index was computed as
+  `int(rand()*1.0/RAND_MAX*nsz)`, which is then exactly `nsz`. The fixture above
+  draws about 3 million times per run, so it took roughly one run in 700; a
+  genome-scale MSigDB collection draws enough to hit it far more often than
+  that. `Random()` returns a value strictly below 1, and the index is clamped
+  besides.
 
 - Count summaries handle singleton and zero-total count vectors with a Gini
   index of zero, avoiding a division by zero or negative QC values (#48).
