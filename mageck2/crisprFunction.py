@@ -552,18 +552,27 @@ def crispr_test(tab,ctrlg,testg,varg, destfile,sgrna2genelist,args):
     return (None,None,None,None)
 
 #: Which RRA implementation to use. This is an internal migration switch, not
-#: a user-facing option: the Python port in mageck2.rra is being validated
-#: against the compiled helper case by case (see tests/parity/), and until that
-#: is complete the compiled helper remains the default. It is read from the
-#: environment rather than added to the command line deliberately -- offering
-#: the choice to users would invite them to make it, and there is no basis on
-#: which they could.
+#: a user-facing option: it is read from the environment rather than added to
+#: the command line deliberately, because offering users the choice would
+#: invite them to make it and there is no basis on which they could.
+#:
+#: The default is now the Python implementation. It reproduces the compiled
+#: helper exactly -- identical lo_value, p and FDR at the precision the output
+#: file carries, and an identical gene_summary.txt end to end -- which is
+#: checked on every push by tests/test_rra_parity.py against goldens recorded
+#: from the helper. Setting MAGECK2_RRA_IMPL=cpp restores the old path for as
+#: long as the helper remains in the tree, which is what makes this reversible
+#: without a release.
 RRA_IMPL_ENV = "MAGECK2_RRA_IMPL"
+
+#: Falling back to the compiled helper stays possible until the C++ trees are
+#: removed, at which point this constant and the branch below go with them.
+DEFAULT_RRA_IMPL = "python"
 
 
 def rra_implementation():
   """Return 'cpp' or 'python'."""
-  value=os.environ.get(RRA_IMPL_ENV,'cpp').strip().lower()
+  value=os.environ.get(RRA_IMPL_ENV,DEFAULT_RRA_IMPL).strip().lower()
   if value not in ('cpp','python'):
     logging.error(RRA_IMPL_ENV+' must be "cpp" or "python"; got '+repr(value))
     sys.exit(-1)
@@ -616,9 +625,10 @@ def rank_association_test(file,outfile,cutoff,args,adjustcutoff=True):
     if cutoff>0.5:
       cutoff=0.5
   if rra_implementation()=='python':
-    logging.info('Using the Python RRA implementation ('+RRA_IMPL_ENV+'=python).')
+    logging.info('Using the Python RRA implementation.')
     rank_association_test_python(file,outfile,cutoff,args)
     return
+  logging.info('Using the compiled RRA helper ('+RRA_IMPL_ENV+'=cpp).')
   #rrapath='/'.join(sys.argv[0].split('/')[:-1]+["../bin/RRA"])
   rrapath='RRA'
   command=rrapath+" -i "+file+" -o "+outfile+" -p "+str(cutoff)

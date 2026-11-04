@@ -85,12 +85,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `mageck2.rra`: a Python implementation of RRA, with a documented array-based
   API — sgRNA names, gene names and values in, a result object out — rather
-  than a file path in and a file path out. It is not yet the default: the
-  compiled helper still is, and the Python path is selected by setting
-  `MAGECK2_RRA_IMPL=python`. That switch is an internal migration control, not
-  a user-facing option; it is read from the environment rather than added to
-  the command line because offering the choice would invite users to make it,
-  and there is no basis on which they could.
+  than a file path in and a file path out. **It is now what runs by default.**
+  The compiled helper remains in the tree and is still installed; setting
+  `MAGECK2_RRA_IMPL=cpp` restores it, which is what makes the change
+  reversible without a release. That switch is an internal migration control
+  rather than a user-facing option, and is read from the environment rather
+  than added to the command line because offering the choice would invite
+  users to make it and there is no basis on which they could.
+
+  Nothing about the results changes, which is the reason the default could be
+  flipped at all — see below.
 
   The two implementations agree exactly, not merely closely. Across the
   thirteen recorded cases `lo_value`, `p` and `FDR` each deviate by zero at the
@@ -113,6 +117,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as immaterial: rows that tie on `lo_value` may appear in a different order,
   because the helper sorts them with an unstable quicksort and this sorts them
   stably. No value differs.
+
+- CI runs the whole test suite against *both* RRA implementations on every
+  pull request, rather than only against whichever one is currently the
+  default. Without that, flipping the default would silently halve what is
+  tested: the parity suite would still pass, against one implementation, and
+  nothing would report that the other had stopped being exercised.
+
+  The `pull_request` trigger no longer restricts itself to pull requests
+  targeting `main`. A pull request stacked on another one's branch previously
+  received no CI at all, which is precisely the case where it is most wanted,
+  since a stacked branch is the one whose base is still moving.
 
 - `tests/test_rra_python.py`: tests for the Python implementation's own
   contract — the array API, the environment switch, the generator's behaviour
