@@ -43,11 +43,14 @@ essentiality testing with copy-number correction, and functional enrichment.
 
 - **CPU-parallel performance** improvements on the counting and ranking paths to support
   genome-scale and emerging large-library screens.
-- **Prebuilt binary wheels** (via [cibuildwheel](https://cibuildwheel.pypa.io/)) so users install
-  without a C++ toolchain. This entails shipping the compiled RRA helper as package data and
-  resolving it by absolute path instead of relying on `PATH`, then building manylinux and macOS
-  (x86_64/arm64) wheels in CI. Until then, MAGeCK2 is distributed as an sdist that compiles the
-  bundled RRA C++ helper on install (a C++ compiler and `make` are required).
+- **Installation without a C++ toolchain**, by removing the requirement rather than packaging
+  around it. The bundled `RRA` and `mageckGSEA` C++ helpers are being ported to NumPy/SciPy and
+  then deleted, after which MAGeCK2 ships as a single pure-Python wheel with no build matrix.
+  This supersedes the previously planned [cibuildwheel](https://cibuildwheel.pypa.io/) matrix,
+  which would have existed to distribute the compiled helpers that are going away; the ranking
+  statistic also has to stop being a subprocess before the Python API above can return objects
+  rather than write files. Until the port lands, MAGeCK2 is distributed as an sdist that
+  compiles the bundled C++ helpers on install (a C++ compiler and `make` are required).
 - Modernized first-class integrations with the wider ecosystem (e.g.
   [nf-core/crisprseq](https://nf-co.re/crisprseq), [Galaxy](https://galaxyproject.org/), and
   [Latch.bio](https://latch.bio/)) onto the new API and data schema.

@@ -59,6 +59,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read the clock in whole seconds and two runs inside the same second agreed
   even with the bug present.
 
+- `tests/parity/` and `tests/test_rra_parity.py`: a differential-test harness
+  for the planned replacement of the bundled C++ helpers with Python, together
+  with goldens recorded from the current compiled RRA. The goldens can only be
+  produced while the C++ exists, so they are recorded now; afterwards they
+  remain as the oracle, and the last commit containing the C++ remains in git
+  history as the way to regenerate them.
+
+  Thirteen cases cover the paths a port is most likely to get wrong, including
+  the two that no previous testing touched: the by-group permutation path,
+  which is the default, and `--control`, which replaces the uniform null with
+  resampled control-sgRNA percentiles. Two further cases round values coarsely
+  so that sgRNAs tie by the dozen, because percentiles come from
+  `bTreeSearchingF`, whose tie resolution follows the recursion path rather
+  than any stated rule.
+
+  The harness proves its own oracle and its own comparator rather than assuming
+  either: goldens are written only when two consecutive runs of the helper
+  agree, and the comparator is mutation-tested against known-wrong candidates,
+  since a differential harness that cannot fail converts "we did not check"
+  into "we checked and it passed". One case is deliberately left without a
+  golden — `--control` with a list matching nothing reaches an out-of-bounds
+  read (issue #51), and freezing a golden there would promote one build's
+  undefined behaviour to a requirement.
+
 ### Changed
 
 - RRA allocates for the screen it was given rather than for the largest one
