@@ -1,0 +1,7 @@
+GMT file: /Users/wei.li/project/mageck2/tests/parity/gsea/goldens/single_pathway/sets.gmt
+Rank file: /Users/wei.li/project/mageck2/tests/parity/gsea/goldens/single_pathway/rank.txt
+Output file: /Users/wei.li/project/mageck2/tests/parity/gsea/goldens/single_pathway/cpp.out.txt
+pathway size:30
+rank size:400
+Permutations:200
+Permutation seed:123456
