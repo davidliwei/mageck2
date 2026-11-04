@@ -1,0 +1,284 @@
+{
+  "cases": {
+    "alpha_high": {
+      "alpha": 0.5,
+      "flags": [],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0010",
+        "GENE0038",
+        "GENE0078",
+        "GENE0125",
+        "GENE0191",
+        "GENE0205"
+      ],
+      "uses_control": false,
+      "why": "-p 0.5, the top of that range, where nearly every sgRNA is kept."
+    },
+    "alpha_low": {
+      "alpha": 0.05,
+      "flags": [],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0010",
+        "GENE0038",
+        "GENE0078",
+        "GENE0125",
+        "GENE0191",
+        "GENE0205"
+      ],
+      "uses_control": false,
+      "why": "-p 0.05, the bottom of the range crisprFunction.py clamps to. A small alpha keeps few sgRNAs per gene, so goodsgrna counts and the kept-set prefix logic are stressed differently."
+    },
+    "control_heterogeneous": {
+      "alpha": 0.25,
+      "flags": [],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 255,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0006",
+        "GENE0013",
+        "GENE0119",
+        "GENE0149",
+        "GENE0172",
+        "GENE0193"
+      ],
+      "uses_control": true,
+      "why": "The control null combined with by-group permutation, so the resampled percentiles are drawn once per sgRNA count. The two features interact and are worth testing together."
+    },
+    "control_matched": {
+      "alpha": 0.25,
+      "flags": [],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 256,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0037",
+        "GENE0195",
+        "GENE0211",
+        "GENE0228",
+        "GENE0246",
+        "GENE0282"
+      ],
+      "uses_control": true,
+      "why": "--control with a list that matches real sgRNAs. The null is resampled from control-sgRNA percentiles instead of drawn uniformly, which is a different distribution rather than a different route to the same one. Never previously validated."
+    },
+    "heterogeneous": {
+      "alpha": 0.25,
+      "flags": [],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0010",
+        "GENE0038",
+        "GENE0078",
+        "GENE0125",
+        "GENE0191",
+        "GENE0205"
+      ],
+      "uses_control": false,
+      "why": "The default path on a realistic library: eight distinct sgRNA-per-gene counts means eight separate nulls, each sized by its own stratum. The prototype benchmark never exercised this."
+    },
+    "homogeneous_5": {
+      "alpha": 0.25,
+      "flags": [],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0038",
+        "GENE0039",
+        "GENE0148",
+        "GENE0176",
+        "GENE0180",
+        "GENE0236"
+      ],
+      "uses_control": false,
+      "why": "Baseline. One permutation stratum, the default by-group path, continuous values so no ties. If this case fails nothing else is worth reading."
+    },
+    "min_goodsgrna": {
+      "alpha": 0.25,
+      "flags": [
+        "--min-number-goodsgrna",
+        "3"
+      ],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 270,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0010",
+        "GENE0038",
+        "GENE0078",
+        "GENE0125",
+        "GENE0191",
+        "GENE0205"
+      ],
+      "uses_control": false,
+      "why": "--min-number-goodsgrna excludes genes from FDR adjustment (adjustFDR, RRA.cpp:646), which makes them print FDR as the string NA. The port has to reproduce which rows are NA, not just the numbers in the rows that are not."
+    },
+    "permutation_ceiling": {
+      "alpha": 0.25,
+      "flags": [
+        "--max-permutation-per-group",
+        "20000"
+      ],
+      "min_p": 2.5253e-05,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0010",
+        "GENE0038",
+        "GENE0078",
+        "GENE0125",
+        "GENE0191",
+        "GENE0205"
+      ],
+      "uses_control": false,
+      "why": "--max-permutation-per-group bounds the null size and so raises the smallest reachable p value. The relationship between that bound and p resolution is asserted in test_rra.py; this case checks the port reproduces the bounded null itself."
+    },
+    "pooled_permutation": {
+      "alpha": 0.25,
+      "flags": [
+        "--no-permutation-by-group"
+      ],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0010",
+        "GENE0038",
+        "GENE0078",
+        "GENE0125",
+        "GENE0191",
+        "GENE0205"
+      ],
+      "uses_control": false,
+      "why": "--no-permutation-by-group: one null for all genes regardless of sgRNA count. This is the path the prototype benchmark validated, kept so a regression in it is still caught."
+    },
+    "single_sgrna_genes": {
+      "alpha": 0.25,
+      "flags": [],
+      "min_p": 1.4925e-05,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0003",
+        "GENE0099",
+        "GENE0201",
+        "GENE0214",
+        "GENE0223",
+        "GENE0242"
+      ],
+      "uses_control": false,
+      "why": "Many genes with exactly one sgRNA. ComputeLoValue always evaluates index 0 before applying the alpha cutoff, so a one-sgRNA gene takes a special path through the kept-set logic."
+    },
+    "skip_gene": {
+      "alpha": 0.25,
+      "flags": [
+        "--skip-gene",
+        "GENE0000",
+        "--skip-gene",
+        "GENE0001"
+      ],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0038",
+        "GENE0039",
+        "GENE0148",
+        "GENE0176",
+        "GENE0180",
+        "GENE0236"
+      ],
+      "uses_control": false,
+      "why": "--skip-gene, which crisprFunction.py always passes (as NA/na). Skipped genes bypass permutation, so they exercise a separate branch of the group loop."
+    },
+    "tie_extreme": {
+      "alpha": 0.25,
+      "flags": [],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0020",
+        "GENE0146",
+        "GENE0161",
+        "GENE0171",
+        "GENE0201",
+        "GENE0267"
+      ],
+      "uses_control": false,
+      "why": "Values rounded to whole numbers, which collapses a 300-gene screen onto about a dozen distinct values. Degenerate on purpose: it turns a rare tie-breaking disagreement into one that shows up in almost every gene."
+    },
+    "tie_heavy": {
+      "alpha": 0.25,
+      "flags": [],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0172",
+        "GENE0185",
+        "GENE0203",
+        "GENE0232",
+        "GENE0267",
+        "GENE0278"
+      ],
+      "uses_control": false,
+      "why": "Values rounded to two decimals, so sgRNAs tie by the dozen. Percentiles come from bTreeSearchingF, whose tie resolution depends on the recursion path rather than on a stated rule, so this is where a port most plausibly diverges."
+    }
+  },
+  "oracle": {
+    "fingerprint": "RRA sha256:4167572a1a1190309e6fbd8b2417d624630e13e3700ef8273bbbc707012a4111",
+    "git_commit": "ad1cdd75ff241fc6a6b4d68728273470c476df42",
+    "git_describe": "v0.3.0-10-gad1cdd7-dirty",
+    "implementation": "compiled RRA C++ helper",
+    "oracle_source_dirty": false,
+    "tree_dirty": true
+  },
+  "platform": {
+    "machine": "arm64",
+    "python": "3.12.12",
+    "system": "Darwin"
+  },
+  "recorded_at": "2026-11-04T19:28:13Z",
+  "recorded_by": "tests/parity/record.py",
+  "tolerances": {
+    "atol_fdr": 5e-06,
+    "note": "lo_value and p are printed via %10.4e (five significant figures) and FDR via %f, so the file itself bounds how closely two implementations can be compared.",
+    "rtol_printed": 0.0001
+  }
+}

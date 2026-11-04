@@ -19,3 +19,9 @@ gsea/bin/mageckGSEA
 
 # Editor / ctags artifacts
 tags
+
+# Internal development planning notes. This repository is user-facing: design
+# and porting plans are working documents for maintainers and are kept out of
+# it deliberately, not merely untracked by accident.
+*_PLAN.md
+*_NOTES.md
