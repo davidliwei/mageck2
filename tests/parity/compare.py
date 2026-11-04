@@ -28,6 +28,10 @@ import dataclasses
 
 import numpy as np
 
+from .stats import inversions as _inversions
+from .stats import normalized_ranks  # noqa: F401  (re-exported for tests)
+from .stats import spearman as _spearman
+
 #: Columns of the RRA output, in the order ``fileio.cpp:329`` writes them.
 COLUMNS = ("group_id", "items_in_group", "lo_value", "p", "FDR", "goodsgrna")
 
@@ -234,65 +238,3 @@ def compare(case_name, golden_text, candidate_text,
             "only_candidate": sorted(hc - hg),
         }
     return report
-
-
-def _spearman(a, b):
-    """Spearman correlation without pulling in SciPy for one number.
-
-    Ranks are averaged over ties, which matters here: p values pile up on the
-    1/(2N) floor, and a tie-naive ranking would report a spurious
-    disagreement between two implementations that both put the same genes on
-    the floor in a different order.
-    """
-    ra, rb = _average_ranks(a), _average_ranks(b)
-    ra = ra - ra.mean()
-    rb = rb - rb.mean()
-    denom = np.sqrt((ra ** 2).sum() * (rb ** 2).sum())
-    if denom == 0.0:
-        return 1.0 if np.allclose(a, b) else 0.0
-    return float((ra * rb).sum() / denom)
-
-
-def normalized_ranks(x):
-    """Tie-averaged ranks of ``x``, scaled so 0 is the smallest value and 1
-    the largest. Used to express "these genes rank near the top" in a way that
-    does not depend on how many genes there are.
-    """
-    x = np.asarray(x, dtype=float)
-    if len(x) < 2:
-        return np.zeros(len(x))
-    return _average_ranks(x) / (len(x) - 1)
-
-
-def _average_ranks(x):
-    order = np.argsort(x, kind="stable")
-    ranks = np.empty(len(x), dtype=float)
-    ranks[order] = np.arange(len(x), dtype=float)
-    # Average the ranks within each run of equal values.
-    sorted_x = x[order]
-    start = 0
-    for i in range(1, len(x) + 1):
-        if i == len(x) or sorted_x[i] != sorted_x[start]:
-            ranks[order[start:i]] = ranks[order[start:i]].mean()
-            start = i
-    return ranks
-
-
-def _inversions(a, b):
-    """Count gene pairs the two implementations order oppositely by p.
-
-    Pairs that tie in either implementation are not counted: a tie carries no
-    ordering claim, so breaking it differently is not an inversion. This is
-    O(n^2) and the corpus is a few hundred genes, which is the right trade for
-    a diagnostic that has to be obviously correct.
-    """
-    n = len(a)
-    count = 0
-    for i in range(n):
-        for j in range(i + 1, n):
-            da, db = a[i] - a[j], b[i] - b[j]
-            if da == 0.0 or db == 0.0:
-                continue
-            if (da > 0.0) != (db > 0.0):
-                count += 1
-    return count
