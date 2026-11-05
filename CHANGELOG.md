@@ -97,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flipped at all — see below.
 
   The two implementations agree exactly, not merely closely. Across the
-  thirteen recorded cases `lo_value`, `p` and `FDR` each deviate by zero at the
+  fifteen recorded cases `lo_value`, `p` and `FDR` each deviate by zero at the
   precision the output file carries, with no change in gene ranking: the
   bundled Lehmer generator is reproduced bit for bit, so both implementations
   draw the same permutation null rather than two samples from the same
@@ -187,6 +187,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   column index is 0-based rather than leaving it to be inferred from the default.
 
 ### Fixed
+
+- The Python RRA backend reads the group column as the list it is. RRA's second
+  field is comma-separated and a row belongs to *every* name in it
+  (`fileio.cpp:107`, `:266`), which is exactly how `mageck2 pathway --method
+  rra` works: `pathwayFunc.py` writes one row per gene whose group field joins
+  every pathway containing that gene. The backend read the field as a single
+  name, so a gene in three pathways produced a pathway called `P1,P2,P3` that
+  does not exist while the three real ones each lost a member. On a 6-pathway
+  GMT with 62 of 100 genes in more than one set, the summary came back listing
+  invented pathways such as `OVERLAP00,OVERLAP01` and omitting every real one.
+  A repeated name is not collapsed either, matching the helper: `P1,P1` gives
+  P1 the row twice.
+
+  The bundled `pathways.gmt` has no gene in two pathways, so no test in the
+  suite ever put a comma in that column. `tests/parity/` gains
+  `pathway_memberships` and `pathway_duplicate_membership`, recorded from the
+  helper on inputs in the shape the pathway caller really emits, and
+  `tests/test_smoke.py` gains an end-to-end check over an overlapping GMT that
+  asserts the identity of the reported pathways under both backends.
+
+- The Python RRA backend groups on full names. It truncated group identifiers
+  to `MAX_NAME_LEN - 1` *before* grouping, so two names agreeing to that length
+  merged into one gene — changing its score and the size of the population the
+  permutation and FDR are computed over. The helper keys `groupNames` on the
+  untruncated string and truncates only the label it stores, which is what its
+  own warning promises. Measured on a probe input: the helper prints two rows
+  under one 511-character label with 4 and 6 sgRNAs; the backend printed one
+  row of 10.
+
+- The Python RRA backend no longer ignores the optional `prob` and `chosen`
+  columns. Both change the answer in the helper — `prob` below 1 switches to
+  `ComputeLoValue_Prob`, and `chosen` of 0 drops a row from its pool's
+  percentiles and its gene's lo-value while still counting it in that gene's
+  sgRNA total — and neither is implemented, so a file carrying a meaningful
+  value was silently analysed as though the column were absent. Such a file is
+  now refused with a message naming `MAGECK2_RRA_IMPL=cpp`. The six-column
+  files `mageck2` writes itself always carry the inert values (`prob` is the
+  literal 1 and only chosen rows are written), so no shipped path is affected;
+  a test pins that.
+
+- The Python RRA backend's permutation chunking is bounded by matrix elements
+  rather than by rows, so a wide gene cannot defeat the memory limit. At the
+  previous 2**18-row limit a gene with 100 sgRNAs materialized a 262,144 x 100
+  float64 array — 210 MB, and the reduction holds several arrays of that shape
+  at once — which is the input the limit exists for. Tiling and saturation
+  libraries do put that many sgRNAs on one gene.
 
 - `mageckGSEA` permutation p values are reproducible. The permutation test was
   seeded with `srand(time(NULL))` and drew with `rand()`, so two identical

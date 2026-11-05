@@ -41,6 +41,8 @@ by 0.0 in SciPy.
 
 import os
 
+import re
+
 import numpy as np
 from scipy.special import betainc
 
@@ -64,13 +66,26 @@ DEFAULT_MAX_SGRNA_PER_GENE_PERMUTATION = 100
 #: (``RRA.cpp:281``) unless ``--permutation`` was given explicitly.
 AUTO_PERMUTATION_TARGET = 100000
 
-#: Rows of the permutation null to build at a time. The null has
+#: Elements of the permutation null to materialize at a time. The null has
 #: (permutation + 1) * (number of genes) rows, so a 20,000-gene screen builds
-#: 2.02 million of them per sgRNA-count group; materializing that at once costs
-#: about half a gigabyte, because the lo-value computation holds several arrays
-#: of the full (rows x sgRNAs) shape at the same time. Each row is independent,
-#: so chunking changes nothing about the result and caps the peak instead.
-NULL_CHUNK_ROWS = 1 << 18
+#: 2.02 million of them per sgRNA-count group, and the lo-value computation
+#: holds several arrays of the full (rows x sgRNAs) shape at once. Each row is
+#: independent, so chunking changes nothing about the result and caps the peak.
+#:
+#: The bound counts elements rather than rows on purpose. A row limit is not a
+#: memory limit: it is only one if every row has the same width, and gene sizes
+#: in the wild range from 1 sgRNA to the few hundred that a tiling or saturation
+#: library puts on one gene. At 2**18 rows a 100-sgRNA gene would allocate a
+#: 262,144 x 100 float64 array -- 210 MB, times the four arrays of that shape
+#: the reduction holds -- so the limit would be defeated by exactly the input
+#: that needs it. 2**18 elements is about 2 MB per array.
+NULL_CHUNK_ELEMENTS = 1 << 18
+
+#: ``strtod`` and ``atoi`` accept a leading numeric prefix and yield 0 when
+#: there is none; these recognise that prefix so a malformed optional column
+#: is read the way the C++ reads it instead of raising.
+_LEADING_FLOAT = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
+_LEADING_INT = re.compile(r"[+-]?\d+")
 
 #: The epsilon the helper brackets each value with when converting a rank to a
 #: percentile, and a lo-value to a p value.
@@ -80,6 +95,18 @@ EPS = 0.000000001
 def name_as_stored(name):
     """Truncate a name the way the C++ stores it, so lookups compare alike."""
     return name[:MAX_NAME_LEN - 1]
+
+
+def _atof(text):
+    """``strtod``'s leading-numeric-prefix rule: no prefix reads as 0.0."""
+    match = _LEADING_FLOAT.match(text.strip())
+    return float(match.group(0)) if match else 0.0
+
+
+def _atoi(text):
+    """``atoi``'s leading-integer-prefix rule: no prefix reads as 0."""
+    match = _LEADING_INT.match(text.strip())
+    return int(match.group(0)) if match else 0
 
 
 class LehmerStream:
@@ -349,7 +376,10 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
     Returns an :class:`RRAResult`.
     """
     items = [name_as_stored(str(x)) for x in items]
-    groups = [name_as_stored(str(x)) for x in groups]
+    # Group fields are kept whole: each is split on "," below and every
+    # sub-name is a grouping key in full. Truncation applies to the stored
+    # label only, never to the key.
+    groups = [str(x) for x in groups]
     values = np.asarray(values, dtype=np.float64)
     if lists is None:
         lists = np.zeros(len(items), dtype=np.int64)
@@ -366,19 +396,46 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
         mask = lists == pool
         pct[mask] = percentiles(np.sort(values[mask]), values[mask])
 
-    # Genes keep input order of first appearance, which is the order the C++
-    # reads them in and therefore the order its pooled permutation consumes
+    # A row's group field is a comma-separated list of every group the row
+    # belongs to, and the row is a member of all of them -- the C++ splits on
+    # "," and loops over the parts, both when counting groups and when filling
+    # them (fileio.cpp:107-141 and 266-287). This is not a corner case:
+    # mageck2's pathway mode depends on it, because pathwayFunc.py:155-162
+    # joins every pathway containing a gene into one field, so a gene in three
+    # pathways arrives as "P1,P2,P3" and has to count in all three. Treating
+    # the field as one name would invent a pathway that does not exist and
+    # leave the three real ones a member short each.
+    #
+    # A repeated sub-name is not collapsed: the C++ increments itemNum once per
+    # occurrence and appends the row once per occurrence, so "P1,P1" really
+    # does give P1 the row twice.
+    #
+    # Keys are the full sub-names. Only the label kept for output is
+    # truncated, which is what copyName does (fileio.cpp:44-58) and what its
+    # warning promises -- "Grouping is unaffected -- it keys on the full name".
+    # Two sub-names agreeing to MAX_NAME_LEN-1 therefore stay two groups that
+    # happen to print the same label, rather than merging into one.
+    #
+    # Groups keep the order of first appearance, scanning rows in order and
+    # each row's sub-names left to right: that is the order the C++ assigns
+    # tmpGroupNum in, and therefore the order its pooled permutation consumes
     # random numbers in.
     gene_index = {}
     gene_names = []
+    row_groups = []
     for g in groups:
-        if g not in gene_index:
-            gene_index[g] = len(gene_names)
-            gene_names.append(g)
+        indices = []
+        for sub in g.split(","):
+            if sub not in gene_index:
+                gene_index[sub] = len(gene_names)
+                gene_names.append(name_as_stored(sub))
+            indices.append(gene_index[sub])
+        row_groups.append(indices)
     ngenes = len(gene_names)
     members = [[] for _ in range(ngenes)]
-    for i, g in enumerate(groups):
-        members[gene_index[g]].append(i)
+    for i, indices in enumerate(row_groups):
+        for gi in indices:
+            members[gi].append(i)
 
     percentile_by_sgrna = {}
     for i, name in enumerate(items):
@@ -455,7 +512,9 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
         # Chunked over passes rather than rows, because one pass draws for
         # every gene in turn and cannot be split without disturbing the order
         # the generator is consumed in.
-        per_chunk = max(1, NULL_CHUNK_ROWS // max(per_pass, 1))
+        # per_pass is the width of one pass over every gene, so dividing by
+        # it already bounds elements rather than rows.
+        per_chunk = max(1, NULL_CHUNK_ELEMENTS // max(per_pass, 1))
         first = 0
         while first < scan_pass:
             npass = min(per_chunk, scan_pass - first)
@@ -491,17 +550,20 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
 
 
 def _null_lo_values(rng, rows, k, alpha, control_values,
-                    chunk=NULL_CHUNK_ROWS):
+                    chunk=NULL_CHUNK_ELEMENTS):
     """Lo-values for ``rows`` permuted genes of ``k`` sgRNAs each.
 
-    Drawn and reduced in chunks. The generator is consumed strictly in order,
-    so chunking does not disturb the sequence, and each row's lo-value depends
-    only on its own draws -- the chunk boundary is invisible in the result.
+    Drawn and reduced in chunks of at most ``chunk`` elements -- so at most
+    ``chunk // k`` rows, never ``chunk`` rows of unbounded width. The generator
+    is consumed strictly in order, so chunking does not disturb the sequence,
+    and each row's lo-value depends only on its own draws: the chunk boundary
+    is invisible in the result.
     """
     out = np.empty(rows, dtype=np.float64)
+    per_chunk = max(1, chunk // max(k, 1))
     done = 0
     while done < rows:
-        take = min(chunk, rows - done)
+        take = min(per_chunk, rows - done)
         block = rng.uniform(take * k).reshape(take, k)
         if control_values is not None:
             block = _resample_control(block, control_values)
@@ -573,9 +635,34 @@ def _parse_flags(flags):
 
 
 def read_input(path):
-    """Read the helper's input format: ``<item> <group> <list> <value>``.
+    """Read the helper's input format.
 
-    The first line is a header and is discarded, matching ``ReadFile``.
+    ``<item> <group> <list> <value> [<prob>] [<iscounted>]``, behind a header
+    row that is discarded -- which is what ``ReadFile`` does.
+
+    The two optional columns are parsed and checked rather than skipped over.
+    mageck2 writes them itself (``crisprFunction.py:505`` and ``:529``) but
+    always with the values that make them inert: ``prob`` is the literal
+    ``1``, and rows are written only when ``chosen`` is 1, so no file this
+    package produces is refused here. A file that does carry a meaningful
+    value is a file whose statistics this port cannot reproduce, and refusing
+    it is the point -- read silently, those columns change the answer:
+
+    * ``prob`` below 1 sends the C++ into ``ComputeLoValue_Prob``
+      (``RRA.cpp:525``), which sums over all ``2**n`` subsets of a gene's
+      sgRNAs. Besides being unimplemented here, it is unusable above a few
+      dozen sgRNAs per gene, and it pairs the probabilities with the
+      *unsorted* percentiles while reducing over the sorted ones, so a port
+      would have to reproduce that pairing to agree with it.
+    * ``chosen`` of 0 drops the row from its pool's percentile distribution
+      and from its gene's lo-value, while still counting it in the gene's
+      sgRNA total -- so the lo-value is computed over fewer sgRNAs than the
+      total it is reported against, and the permutation null for the gene is
+      built from the smaller count (``RRA.cpp:412-413``, ``:646``,
+      ``:908-918``).
+
+    Supporting either means recording goldens for it while the C++ is still
+    here to record them from, which is Phase 3b work at the earliest.
     """
     items, groups, pools, values = [], [], [], []
     with open(path) as handle:
@@ -593,6 +680,21 @@ def read_input(path):
             groups.append(fields[1])
             pools.append(fields[2])
             values.append(float(fields[3]))
+            # atof/atoi, like the C++: a field that is not a number reads as
+            # zero rather than raising, so a non-numeric prob is caught by the
+            # value check below rather than by float().
+            if len(fields) > 4 and _atof(fields[4]) != 1.0:
+                raise ValueError(
+                    "%s:%d: sgRNA probabilities other than 1 are not "
+                    "supported by the Python RRA backend (got %r). Run with "
+                    "MAGECK2_RRA_IMPL=cpp, or drop the column."
+                    % (path, lineno, fields[4]))
+            if len(fields) > 5 and _atoi(fields[5]) != 1:
+                raise ValueError(
+                    "%s:%d: unchosen sgRNAs (column 6 other than 1) are not "
+                    "supported by the Python RRA backend (got %r). Run with "
+                    "MAGECK2_RRA_IMPL=cpp, or remove the row."
+                    % (path, lineno, fields[5]))
     if not items:
         raise ValueError("%s contains no data rows" % path)
     pool_ids = {name: i for i, name in enumerate(dict.fromkeys(pools))}
