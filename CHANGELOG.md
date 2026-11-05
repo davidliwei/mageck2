@@ -9,6 +9,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `mageck2.gsea`: a Python implementation of `mageckGSEA`, with an array-based
+  API — a mapping of gene sets and two parallel sequences in, a result object
+  out — rather than a GMT path and a rank path in and a file path out. The
+  compiled helper is still what runs by default; the Python path is selected
+  with `MAGECK2_GSEA_IMPL=python`. That switch is an internal migration
+  control rather than a user-facing option, and is read from the environment
+  for the same reason `MAGECK2_RRA_IMPL` is.
+
+  The two implementations agree exactly where they are meant to. All fifteen
+  parity cases match column by column, including the permutation p values,
+  which are required to be *identical* rather than close: the bundled Lehmer
+  generator is reproduced bit for bit and the rejection sampling consumes it
+  draw for draw, so both implementations test against the same permutations
+  rather than two samples from the same distribution. On an independent
+  2,000-gene × 60-set × 1,000-permutation input built after the port was
+  finished, `mageckGSEA` and `mageck2.gsea` produce byte-identical output.
+  A real `mageck2 pathway --method gsea` run agrees on every column but one,
+  discussed below.
+
+  Getting there needed two things that look like over-literalism and are not.
+  Both sums in the enrichment walk are taken left to right, because
+  `ndarray.sum` is pairwise — more accurate, and therefore wrong here — and
+  each term is divided by the running total before being accumulated rather
+  than after, because that is the order the C++ accumulates in. Floating-point
+  addition is not associative, and gene sets whose weights cancel to around
+  1e-16 are common enough in real GMT files that getting either wrong flipped
+  one permutation decision per run. Separately, the enrichment score is
+  truncated to 32 bits before the permutation test compares it, because the
+  helper stores it in a `float`: skipping that fails 12 of the 15 cases.
+
+  On 2,000 genes × 60 sets × 1,000 permutations the Python implementation
+  spends 0.32 s against the helper's 0.10 s. A scalar transcription of the
+  same algorithm took 2.07 s; the difference is that the enrichment score is
+  computed for a batch of permutations at once. The rejection sampling that
+  produces those permutations cannot be vectorised — how many random numbers
+  a sample consumes is not known until it is drawn — and stays a
+  draw-at-a-time walk over a block-generated stream.
+
+  One column differs from the helper on purpose. `Size` is the number of genes
+  in a set, and the helper tokenises GMT lines on whitespace although GMT is
+  tab-delimited with a free-text description in the second column, so the
+  description's second and later words are counted as members. Every real GMT
+  file is affected — MSigDB descriptions are prose — and the bundled
+  `tests/data/pathways.gmt` shows it: its sets hold five genes each and the
+  helper reports `Size` 7. Worse, a description word that matches a gene
+  symbol is not merely counted but *scored*, which moves `ES` and `p` as
+  well. The port reads tabs and reports the true size. Four further
+  input-handling bugs are fixed rather than reproduced — a missing final
+  newline dropping the last line of either input file, a blank GMT line
+  becoming a gene set named with the empty string, and trailing whitespace
+  adding a phantom member — each asserted as the property that the answer on
+  a malformed file equals the answer on its repair.
+
+- `tests/test_gsea_python.py`: tests for the Python implementation's own
+  contract — the environment switch, the seed bounds, the array API's
+  invariance to any monotone transform of the scores, a gene set with no
+  overlap at all, and each of the five input-handling divergences.
+
 - `RRA --max-permutation-per-group <n>`: an optional upper bound on the
   permutations performed for each distinct sgRNA-per-gene count, trading run
   time for p value resolution. There is no bound by default, and the option is
