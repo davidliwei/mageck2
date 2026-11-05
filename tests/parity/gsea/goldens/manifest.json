@@ -116,10 +116,10 @@
         "skip_header": true,
         "sort_by_p": true
       },
-      "min_p_permutation": 1.0,
-      "mode": "divergence",
-      "n_degenerate": 1,
-      "n_rows": 1,
+      "min_p_permutation": 0.0,
+      "mode": "parity",
+      "n_degenerate": 0,
+      "n_rows": 8,
       "ngenes": 400,
       "nsets": 8,
       "perms": 200,
@@ -140,7 +140,7 @@
         "sort_by_p": true
       },
       "min_p_permutation": 0.0,
-      "mode": "divergence",
+      "mode": "parity",
       "n_degenerate": 0,
       "n_rows": 8,
       "ngenes": 400,
@@ -163,9 +163,9 @@
         "sort_by_p": true
       },
       "min_p_permutation": 0.0,
-      "mode": "divergence",
+      "mode": "parity",
       "n_degenerate": 0,
-      "n_rows": 7,
+      "n_rows": 8,
       "ngenes": 400,
       "nsets": 8,
       "perms": 200,
@@ -186,7 +186,7 @@
         "sort_by_p": true
       },
       "min_p_permutation": 0.0,
-      "mode": "divergence",
+      "mode": "parity",
       "n_degenerate": 0,
       "n_rows": 8,
       "ngenes": 400,
@@ -341,7 +341,7 @@
         "sort_by_p": true
       },
       "min_p_permutation": 0.0,
-      "mode": "divergence",
+      "mode": "parity",
       "n_degenerate": 0,
       "n_rows": 8,
       "ngenes": 400,
@@ -545,9 +545,9 @@
     }
   },
   "oracle": {
-    "fingerprint": "mageckGSEA sha256:1f39e860cb77723ece6d83ef4b346c9ee67374ca7397a00e2fc640c9e9e1f4a8",
-    "git_commit": "8fff4c40caf8fd53f0be2612fce4a2fe6342a775",
-    "git_describe": "v0.3.0-10-g8fff4c4-dirty",
+    "fingerprint": "mageckGSEA sha256:0b102df1ccf76be25770c64302c0861cf29e8b0c74c75fb152f02e07a640fd40",
+    "git_commit": "b8d99898ae86b8c70a72907acb03392b763cfc39",
+    "git_describe": "v0.3.0-12-gb8d9989-dirty",
     "implementation": "compiled mageckGSEA C++ helper",
     "oracle_source_dirty": false,
     "tree_dirty": true
@@ -557,7 +557,7 @@
     "python": "3.9.6",
     "system": "Darwin"
   },
-  "recorded_at": "2026-11-04T22:36:04Z",
+  "recorded_at": "2026-11-05T15:27:43Z",
   "recorded_by": "tests/parity/gsea/record.py",
   "tolerances": {
     "atol_es": 1e-15,

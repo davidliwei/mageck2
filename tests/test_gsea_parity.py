@@ -20,19 +20,21 @@ file still runs and does real work:
   the two cases where it must *not* object, since a comparator that rejects
   everything is equally useless.
 
-Divergences
------------
+Malformed inputs
+----------------
 
-Five corpus cases are ``Mode.DIVERGENCE``: the C++ behaviour is defined,
-reproducible, and wrong, and the port is required to differ. Their goldens are
-recorded anyway -- that is what keeps the premise of each fix checkable, and it
-documents what users of past versions actually got -- but the port is never
-compared against them.
+Five corpus cases feed the helper a deliberately malformed file. They were
+once ``Mode.DIVERGENCE`` cases: the C++ behaviour was defined, reproducible
+and wrong, so the port was required to differ from it and was never compared
+against those goldens.
 
-What the port is asked for instead is a property: **a malformed input must give
-the same answer as its repair.** A missing final newline, a blank line, a
-multi-word description and trailing whitespace are all things that should not
-change a result, and each one changes it today. Stating the fix that way is
+The five bugs were then fixed in the helper itself, which is the better answer
+while the helper is still what ships. So these are ordinary parity cases now,
+their goldens re-recorded from the fixed helper, and the property they carry
+is required of *both* implementations rather than only the port: **a malformed
+input must give the same answer as its repair.** A missing final newline, a
+blank line, a multi-word description and trailing whitespace are all things
+that should not change a result. Stating the fix that way is
 stronger than listing expected numbers, and it does not need the port to exist
 in order to be written down.
 """
@@ -58,7 +60,7 @@ pytestmark = pytest.mark.skipif(
 
 PARITY_IDS = [c.name for c in corpus.PARITY_CASES]
 RECORDED_IDS = [c.name for c in corpus.RECORDED_CASES]
-DIVERGENCE_IDS = [c.name for c in corpus.DIVERGENCE_CASES]
+MALFORMED_IDS = [c.name for c in corpus.MALFORMED_CASES]
 
 #: The enriched gene sets are drawn from the top of the ranking, so a correct
 #: implementation puts them near the top of the output. Measured over the
@@ -127,8 +129,7 @@ def test_goldens_rank_the_enriched_sets_near_the_top(case):
     """The goldens contain signal, not just self-consistent noise.
 
     A corpus of pure null data would let a broken port agree with a broken
-    golden and report success. ``DIVERGENCE`` cases are excluded because their
-    inputs are malformed on purpose, and the cases whose planting does not
+    golden and report success. The cases whose planting does not
     apply -- scoring on the opposite column, or ignoring the score columns
     altogether -- declare that with ``signal_expected=False``.
     """
@@ -161,11 +162,12 @@ def test_goldens_rank_the_enriched_sets_near_the_top(case):
 def test_cpp_still_reproduces_its_goldens(case, tmp_path):
     """The compiled helper must still produce what was recorded from it.
 
-    This is what keeps the goldens honest while the C++ is in the tree. It is
-    also what keeps the ``DIVERGENCE`` cases meaningful: each of those asserts
-    that the C++ does something specific and wrong, and if the C++ stopped
-    doing it, the fix the port is required to make would no longer have a
-    premise.
+    This is what keeps the goldens honest while the C++ is in the tree.
+
+    It earned its place when the five input-handling bugs were fixed: the
+    fifteen well-formed cases went on reproducing bit for bit and exactly the
+    five malformed ones failed, which is what established that the fix changed
+    nothing for any input that was already well formed.
     """
     corpus.build(case, tmp_path)
     produced, _ = runners.CppRunner().run(case, tmp_path)
@@ -267,76 +269,75 @@ REPAIRS = {
 }
 
 
-def test_every_divergence_case_states_how_to_repair_it():
-    """A divergence with no repair has no testable fix."""
-    assert set(REPAIRS) == {c.name for c in corpus.DIVERGENCE_CASES}, (
-        "REPAIRS and the DIVERGENCE cases disagree; a divergence case "
-        "without a repair is asserted by nothing")
+def test_every_malformed_case_states_how_to_repair_it():
+    """A malformed case with no repair is asserted by nothing."""
+    assert set(REPAIRS) == {c.name for c in corpus.MALFORMED_CASES}, (
+        "REPAIRS and the malformed cases disagree, so some case's "
+        "malformation is not checked against its repair")
 
 
-@pytest.mark.skipif(shutil.which("mageckGSEA") is None,
-                    reason="mageckGSEA is not on PATH")
-@pytest.mark.parametrize("case", corpus.DIVERGENCE_CASES, ids=DIVERGENCE_IDS)
-def test_the_cpp_really_is_wrong_on_each_divergence(case, tmp_path):
-    """The premise of each fix, asserted against the C++ rather than claimed.
+def _malformed_and_repaired(case, tmp_path):
+    """Build the case twice, repairing one copy. Returns both directories."""
+    malformed = tmp_path / "malformed"
+    repaired = tmp_path / "repaired"
+    malformed.mkdir()
+    repaired.mkdir()
+    corpus.build(case, malformed)
+    corpus.build(case, repaired)
+    REPAIRS[case.name](repaired)
+    return malformed, repaired
 
-    If the helper's answer on the malformed input already equalled its answer
-    on the repaired one, the case would be documenting a bug that does not
-    exist, and the port would be required to fix nothing.
+
+@pytest.mark.parametrize("runner", [
+    pytest.param(
+        runners.CppRunner(), id="cpp",
+        marks=pytest.mark.skipif(shutil.which("mageckGSEA") is None,
+                                 reason="mageckGSEA is not on PATH")),
+    pytest.param(runners.PythonRunner(), id="python", marks=needs_port),
+])
+@pytest.mark.parametrize("case", corpus.MALFORMED_CASES, ids=MALFORMED_IDS)
+def test_neither_implementation_is_moved_by_a_malformation(case, runner,
+                                                           tmp_path):
+    """A malformed input must give the same answer as its repair.
+
+    This used to be asked of the port alone, against a C++ that was required
+    to fail it -- the premise of five fixes the port made unilaterally. The
+    bugs were fixed in the helper instead, so the property is now a shared
+    contract, which is a stronger statement: the two implementations have to
+    agree with each other *and* with the repaired input, and a regression in
+    either one is caught here rather than only in whichever was being ported.
+
+    Keeping the property rather than freezing the repaired numbers as goldens
+    is deliberate. It says what the behaviour has to be -- malformation is not
+    information -- instead of what it happens to equal on this corpus.
     """
-    malformed = tmp_path / "malformed"
-    repaired = tmp_path / "repaired"
-    malformed.mkdir()
-    repaired.mkdir()
-    corpus.build(case, malformed)
-    corpus.build(case, repaired)
-    REPAIRS[case.name](repaired)
-
-    bad, _ = runners.CppRunner().run(case, malformed)
-    good, _ = runners.CppRunner().run(case, repaired)
-    assert bad != good, (
-        "the C++ gives the same answer for %r malformed and repaired, so "
-        "there is no divergence here and the case should be reclassified"
-        % case.name)
-
-
-@needs_port
-@pytest.mark.parametrize("case", corpus.DIVERGENCE_CASES, ids=DIVERGENCE_IDS)
-def test_python_port_is_unmoved_by_each_malformation(case, tmp_path):
-    """The port must answer the same for a malformed input and its repair."""
-    malformed = tmp_path / "malformed"
-    repaired = tmp_path / "repaired"
-    malformed.mkdir()
-    repaired.mkdir()
-    corpus.build(case, malformed)
-    corpus.build(case, repaired)
-    REPAIRS[case.name](repaired)
-
-    runner = runners.PythonRunner()
+    malformed, repaired = _malformed_and_repaired(case, tmp_path)
     bad, _ = runner.run(case, malformed)
     good, _ = runner.run(case, repaired)
     report = compare.compare(case.name, good, bad)
     assert report.ok, (
-        "the port's answer changes when the input is malformed in the way "
-        "%r describes, which is the C++ behaviour it is supposed to "
-        "fix:\n%s" % (case.name, report.render()))
+        "%s answers differently for %r malformed and repaired:\n%s"
+        % (runner.name, case.name, report.render()))
 
 
-@needs_port
-@pytest.mark.parametrize("case", corpus.DIVERGENCE_CASES, ids=DIVERGENCE_IDS)
-def test_python_port_does_not_reproduce_the_divergence_goldens(case, tmp_path):
-    """The complement: the port must *not* match these goldens.
+@pytest.mark.skipif(shutil.which("mageckGSEA") is None,
+                    reason="mageckGSEA is not on PATH")
+@pytest.mark.parametrize("case", corpus.MALFORMED_CASES, ids=MALFORMED_IDS)
+def test_the_malformation_is_still_reaching_the_parser(case, tmp_path):
+    """The fixtures must still be malformed in the way they claim.
 
-    Without this, a port that reproduced the C++ bit for bit -- bugs
-    included -- would pass every test in this file, because the divergence
-    goldens are otherwise only ever read, never asserted against.
+    The property above passes trivially if the malformation stopped being
+    applied -- a repair that is a no-op makes both sides identical by
+    construction. This asserts the two input files actually differ, so the
+    case cannot go vacuous without saying so.
     """
-    corpus.build(case, tmp_path)
-    produced, _ = runners.PythonRunner().run(case, tmp_path)
-    report = compare.compare(case.name, golden_text(case.name), produced)
-    assert not report.ok, (
-        "the port reproduces the C++ exactly on %r, including the bug the "
-        "case exists to document" % case.name)
+    malformed, repaired = _malformed_and_repaired(case, tmp_path)
+    differences = [
+        name for name in ("sets.gmt", "rank.txt")
+        if (malformed / name).read_bytes() != (repaired / name).read_bytes()]
+    assert differences, (
+        "repairing %r changed neither input file, so the case no longer "
+        "malforms anything and its property holds for free" % case.name)
 
 
 # --------------------------------------------------------------------------
@@ -709,16 +710,26 @@ def test_comparator_rejects_a_truncated_row():
 
 
 def test_comparator_reads_back_a_pathway_with_an_empty_name():
-    """The ``gmt_blank_line`` golden has one, and it must be readable.
+    """``parse`` must tolerate an empty name rather than drop the row.
 
-    If ``parse`` dropped or rejected it, the case documenting the most severe
-    of the five divergences would silently stop being checked.
+    The ``gmt_blank_line`` golden used to contain exactly such a row: a blank
+    GMT line became a gene set named with the empty string, and the helper
+    reported that one junk row while silently skipping every real set. The
+    helper no longer does that, so this is asserted against ``parse`` directly
+    instead of against the golden -- the capability is still needed, because a
+    comparator that drops a row it cannot name would hide a port emitting one.
     """
-    rows, order = compare.parse(golden_text("gmt_blank_line"))
-    assert order == [""], (
-        "the blank-line golden should contain exactly one row, named with "
-        "the empty string, got %r" % (order,))
+    text = "\n".join([
+        compare.COLUMNS and "\t".join(compare.COLUMNS),
+        "\t".join(["", "0", "0", "1", "1", "1", "1", "0", "0"]),
+        "\t".join(["REAL", "12", "0.5", "0.01", "0.02", "0.03", "2", "4",
+                    "0"]),
+    ]) + "\n"
+    rows, order = compare.parse(text)
+    assert order == ["", "REAL"], (
+        "the empty-named row was dropped or reordered: %r" % (order,))
     assert rows[""]["Size"] == 0
+    assert rows["REAL"]["Size"] == 12
 
 
 # --------------------------------------------------------------------------

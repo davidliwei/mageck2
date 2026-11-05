@@ -11,7 +11,7 @@ freezing its output is meaningful at all. This helper in particular earned that
 check -- it seeded its permutations from the clock until PR #52, so goldens
 recorded from any earlier build would have been noise.
 
-``DIVERGENCE`` cases are recorded like any other. Their goldens are not a
+Malformed-input cases are recorded like any other. Their goldens are not a
 requirement on the port -- the whole point of those cases is that the port must
 differ -- but the C++ behaviour there is defined and reproducible, and
 recording it is what keeps the premise of each fix checkable. ``CONTRACT``
@@ -153,7 +153,7 @@ def main(argv=None):
         print("ok    %-28s %5.2fs  rows=%-4d %s"
               % (case.name, time.time() - started,
                  cases[case.name]["n_rows"],
-                 "(divergence)" if case.mode is corpus.Mode.DIVERGENCE else ""))
+                 "(malformed input)" if case in corpus.MALFORMED_CASES else ""))
 
     manifest_path = args.out / MANIFEST
     existing = {}

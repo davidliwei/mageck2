@@ -428,7 +428,7 @@ CASES = (
         gen_seed=43,
     ),
 
-    # --- cases where the C++ is defined and wrong -------------------------
+    # --- malformed inputs: both implementations must be unmoved ----------
     Case(
         name="gmt_missing_final_newline",
         why="parsegmt loops `while(true){getline; if(eof) break;}`. On a file "
@@ -437,7 +437,7 @@ CASES = (
             "last gene set is silently dropped. Confirmed against the binary "
             "-- it reports one pathway fewer and says nothing. The port must "
             "keep the set.",
-        mode=Mode.DIVERGENCE,
+        mode=Mode.PARITY,
         gmt_no_trailing_newline=True,
         nsets=8,
     ),
@@ -447,7 +447,7 @@ CASES = (
             "also lowers the line count that every gene's score is divided by, "
             "so one missing newline perturbs the whole ranking rather than "
             "just losing a row. The port must keep the gene.",
-        mode=Mode.DIVERGENCE,
+        mode=Mode.PARITY,
         rank_no_trailing_newline=True,
         nsets=8,
     ),
@@ -460,7 +460,7 @@ CASES = (
             "silently skips every real one, exiting 0. Confirmed against the "
             "binary: a 2-set file plus one blank line produces a single junk "
             "row. The port must ignore blank lines.",
-        mode=Mode.DIVERGENCE,
+        mode=Mode.PARITY,
         gmt_blank_line=True,
         nsets=8,
     ),
@@ -478,7 +478,7 @@ CASES = (
             "description \"response to G01\" moved ES from 5.55e-17 to "
             "0.396226 and p from 0.9025 to 0, because G01 is the top-ranked "
             "gene. The port must read the GMT as tab-delimited.",
-        mode=Mode.DIVERGENCE,
+        mode=Mode.PARITY,
         gmt_description_with_spaces=True,
         nsets=8,
     ),
@@ -490,7 +490,7 @@ CASES = (
             "name joins the set. It never matches anything, but it inflates "
             "the Size column -- the number users read as the gene-set size -- "
             "by one. Confirmed against the binary. The port must not count it.",
-        mode=Mode.DIVERGENCE,
+        mode=Mode.PARITY,
         gmt_trailing_whitespace=True,
         nsets=8,
     ),
@@ -500,11 +500,23 @@ BY_NAME = {c.name: c for c in CASES}
 
 PARITY_CASES = tuple(c for c in CASES if c.mode is Mode.PARITY)
 CONTRACT_CASES = tuple(c for c in CASES if c.mode is Mode.CONTRACT)
-DIVERGENCE_CASES = tuple(c for c in CASES if c.mode is Mode.DIVERGENCE)
 
-#: Cases a golden is recorded for. ``DIVERGENCE`` cases are included on
-#: purpose: the C++ behaviour there is defined and reproducible, and recording
-#: it is how the premise of each fix stays checkable. What must not happen is
-#: the port being *required* to match those goldens, which is the comparison
-#: ``test_gsea_parity.py`` declines to make for them.
-RECORDED_CASES = PARITY_CASES + DIVERGENCE_CASES
+#: Cases whose input file is deliberately malformed in a way that used to
+#: change the helper's answer. Each was a ``Mode.DIVERGENCE`` case -- the port
+#: was required to differ from a C++ that was defined and wrong -- until the
+#: five bugs were fixed in the helper instead. They are ordinary parity cases
+#: now, and the property they carry is stronger than before, because it is
+#: required of *both* implementations: the answer on the malformed file must
+#: equal the answer on its repair.
+#:
+#: Derived from the malformation flags rather than listed, so it cannot drift
+#: from the cases themselves.
+MALFORMED_CASES = tuple(
+    c for c in CASES
+    if (c.gmt_no_trailing_newline or c.rank_no_trailing_newline
+        or c.gmt_blank_line or c.gmt_trailing_whitespace
+        or c.gmt_description_with_spaces))
+
+#: Cases a golden is recorded for: everything except the contract cases, where
+#: the C++ reaches undefined behaviour and there is nothing to copy.
+RECORDED_CASES = PARITY_CASES

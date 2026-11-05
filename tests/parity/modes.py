@@ -8,7 +8,7 @@ import enum
 
 
 class Mode(enum.Enum):
-    """Whether a case is checked against the C++, a contract, or a known fix.
+    """Whether a case is checked against the C++ or against a stated contract.
 
     ``PARITY``
         The C++ behaviour is well defined and the port must reproduce it. This
@@ -22,21 +22,16 @@ class Mode(enum.Enum):
         cases instead assert the behaviour the port is *choosing*, and the
         choice has to be made deliberately and documented in the test.
 
-    ``DIVERGENCE``
-        The C++ behaviour is well defined, reproducible, and wrong, and the
-        port is required to differ from it. This is a separate mode rather
-        than a flavour of ``CONTRACT`` because the distinction matters in both
-        directions: the behaviour *is* defined, so it can be recorded and the
-        record is worth having -- it documents what users of past versions
-        actually got -- but it must not become a requirement, because the whole
-        point of the case is that the port fixes it.
-
-        A golden is still recorded for a ``DIVERGENCE`` case. The test then
-        asserts two things: that the C++ still behaves as recorded (so the
-        premise of the fix has not silently changed), and that the port does
-        not, in the specific way the case names.
+    There used to be a third mode, ``DIVERGENCE``, for behaviour that was
+    well defined, reproducible, and wrong, where the port was required to
+    differ. Five ``mageckGSEA`` input-handling bugs were classified that way.
+    They were fixed in the C++ instead, which is the better answer when the
+    C++ is still what ships: the cases became ordinary ``PARITY`` cases whose
+    inputs happen to be malformed, and both implementations now have to agree
+    with each other *and* with the repaired input. The mode is gone rather
+    than kept empty because nothing needs it, and a mode no case uses is a
+    claim the corpus does not support.
     """
 
     PARITY = "parity"
     CONTRACT = "contract"
-    DIVERGENCE = "divergence"
