@@ -156,6 +156,100 @@ def test_pathway_rra_end_to_end(tmp_path):
     assert (tmp_path / "pw_rra.pathway_summary.txt").exists()
 
 
+#: Every gene of the bundled pathways.gmt belongs to exactly one pathway, so
+#: no run over it ever puts a comma in RRA's group column. That is a gap, not a
+#: simplification: the column is a *list*, and the pathway caller is the only
+#: thing in MAGeCK2 that writes more than one name into it.
+_OVERLAPPING_GMT_SETS = 6
+_OVERLAPPING_GMT_SIZE = 25
+
+
+def _overlapping_gmt(path, genes, seed=7):
+    """Write a GMT whose pathways share genes, and return {name: members}."""
+    import random
+
+    rng = random.Random(seed)
+    sets = {}
+    for i in range(_OVERLAPPING_GMT_SETS):
+        name = "OVERLAP%02d" % i
+        sets[name] = sorted(rng.sample(genes, min(_OVERLAPPING_GMT_SIZE,
+                                                  len(genes))))
+    path.write_text("".join(
+        "%s\toverlapping_set\t%s\n" % (n, "\t".join(m))
+        for n, m in sorted(sets.items())))
+    return sets
+
+
+def _ranked_genes(gene_summary):
+    with open(gene_summary) as handle:
+        return [ln.split("\t")[0] for ln in handle.read().splitlines()[1:]
+                if ln.strip()]
+
+
+@pytest.mark.parametrize("impl", ["cpp", "python"])
+def test_pathway_rra_counts_a_gene_in_every_pathway_it_belongs_to(tmp_path,
+                                                                  impl):
+    """A gene in several pathways must count in all of them.
+
+    ``pathwayFunc.py:155-162`` writes one row per gene with the group column
+    set to a comma-separated list of every pathway containing that gene, and
+    RRA splits the field on "," (``fileio.cpp:107``, ``:266``). With the
+    bundled GMT no gene is in two pathways, so no comma is ever produced and
+    nothing in the suite distinguished "belongs to P1 and P2" from "belongs to
+    a group called P1,P2". A backend making that mistake reports pathways that
+    do not exist, omits the real ones, and still exits 0 -- so the assertion
+    here is on the *identity* of the rows, which is immune to the tie ordering
+    the summary's rank column inherits from an unstable sort.
+
+    Parametrized over both backends because the point is that they agree about
+    what the column means, not that either one runs.
+    """
+    gene_summary = _run_test_step(tmp_path)
+    gmt = tmp_path / "overlapping.gmt"
+    sets = _overlapping_gmt(gmt, _ranked_genes(gene_summary))
+    overlapping = {g for name, members in sets.items() for g in members
+                   if sum(g in m for m in sets.values()) > 1}
+    assert overlapping, "the fixture must put some gene in more than one set"
+
+    env = dict(os.environ, MAGECK2_RRA_IMPL=impl)
+    result = subprocess.run(
+        [
+            "mageck2", "pathway",
+            "--gene-ranking", str(gene_summary),
+            "--gmt-file", str(gmt),
+            "-n", "pw_overlap",
+            "--method", "rra",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    if impl == "python":
+        assert "Python RRA implementation" in result.stdout + result.stderr, (
+            "the switch did not take effect, so this ran the compiled helper "
+            "and the Python backend is untested here")
+
+    lines = (tmp_path / "pw_overlap.pathway_summary.txt").read_text()
+    rows = {ln.split("\t")[0]: ln.split("\t") for ln in
+            lines.splitlines()[1:] if ln.strip()}
+
+    commas = [name for name in rows if "," in name]
+    assert not commas, (
+        "the group column was read as a single name, so these pathways were "
+        "invented: %r" % (commas[:3],))
+    # "NA" is the group pathwayFunc gives genes in no pathway, so it is a
+    # legitimate extra row.
+    assert set(sets) <= set(rows), (
+        "pathways missing from the summary: %r"
+        % (sorted(set(sets) - set(rows)),))
+    for name, members in sets.items():
+        assert int(rows[name][1]) == len(members), (
+            "pathway %s reported %s genes, expected %d"
+            % (name, rows[name][1], len(members)))
+
+
 def test_gsea_skips_genes_absent_from_rank_file(tmp_path):
     """Regression: mageckGSEA must ignore pathway genes not in the rank file.
 

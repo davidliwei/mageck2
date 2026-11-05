@@ -59,6 +59,17 @@ class Case:
     #: Write a control file whose names match nothing in the input. Used to
     #: reach the ``n_control == 0`` path.
     control_unmatched: bool = False
+    #: Shape of the group column. ``"single"`` is one group name per row.
+    #: ``"pathway"`` is the shape mageck2's pathway mode writes -- one row per
+    #: gene, the group field a comma-separated list of every pathway the gene
+    #: belongs to. ``"duplicate"`` repeats a name inside that list.
+    group_style: str = "single"
+    #: ``"pathway"``/``"duplicate"`` only: how many pathways to draw from, and
+    #: the most any one gene joins.
+    npathways: int = 40
+    max_pathways_per_gene: int = 4
+    #: ``"pathway"``/``"duplicate"`` only: how many pathways get a real effect.
+    enriched_pathways: int = 3
 
     @property
     def uses_control(self):
@@ -73,12 +84,65 @@ def _sgrna_counts(case):
     return [spec[i % len(spec)] for i in range(case.ngenes)]
 
 
+def _build_pathway(case, directory):
+    """Write an input in the shape mageck2's pathway mode writes.
+
+    ``pathwayFunc.py:146-162`` emits one row per gene, with the group field a
+    comma-separated list of every pathway that contains the gene, and the
+    literal ``NA`` for a gene in none. A gene in several pathways is therefore
+    one row that belongs to several groups, which the C++ handles by splitting
+    the field (``fileio.cpp:107`` and ``:266``) -- the group column is a list,
+    not a name.
+
+    This shape is the reason the case exists: it is what the shipped pathway
+    mode actually produces, and nothing else in the corpus has a comma in the
+    group column, so nothing else distinguishes "belongs to P1 and P2" from
+    "belongs to a group called P1,P2".
+
+    Returns the names of the pathways given a real effect.
+    """
+    rng = np.random.default_rng(case.seed)
+    pathways = ["PATHWAY%03d" % i for i in range(case.npathways)]
+    enriched = sorted(rng.choice(case.npathways, size=case.enriched_pathways,
+                                 replace=False).tolist())
+    enriched_names = {pathways[i] for i in enriched}
+
+    rows = [INPUT_HEADER]
+    for gene in range(case.ngenes):
+        n_join = int(rng.integers(0, case.max_pathways_per_gene + 1))
+        if n_join == 0:
+            membership = []
+        else:
+            membership = sorted(rng.choice(
+                case.npathways, size=n_join, replace=False).tolist())
+        names = [pathways[i] for i in membership]
+        if case.group_style == "duplicate" and len(names) >= 2:
+            # A repeated sub-name is not collapsed: the C++ increments itemNum
+            # once per occurrence, so the row lands in that group twice. Only
+            # a corpus entry that repeats one proves the port agrees.
+            names = [names[0]] + names
+        # Genes in an enriched pathway get the effect; the rest are null.
+        shift = case.effect if (enriched_names & set(names)) else 0.0
+        value = rng.normal(shift, 1.0)
+        if case.round_to is not None:
+            value = round(value, case.round_to)
+        field = ",".join(names) if names else "NA"
+        rows.append("GENE%04d\t%s\tlist\t%.6f" % (gene, field, value))
+
+    (directory / "input.txt").write_text("\n".join(rows) + "\n")
+    return enriched_names
+
+
 def build(case, directory):
     """Write ``input.txt`` (and ``control.txt`` if needed) for ``case``.
 
-    Returns the set of gene names given a real effect, so a test can check that
-    an implementation recovers them without having to re-derive the planting.
+    Returns the set of group names given a real effect, so a test can check
+    that an implementation recovers them without having to re-derive the
+    planting. For the pathway-shaped cases those names are pathways, because
+    pathways are what the output has one row per.
     """
+    if case.group_style in ("pathway", "duplicate"):
+        return _build_pathway(case, directory)
     rng = np.random.default_rng(case.seed)
     counts = _sgrna_counts(case)
     nhits = max(1, int(round(case.ngenes * case.hit_fraction)))
@@ -250,6 +314,35 @@ CASES = (
         flags=("--max-permutation-per-group", "20000"),
         sgrnas_per_gene=HETEROGENEOUS_MIX,
         seed=23,
+    ),
+    Case(
+        name="pathway_memberships",
+        why="The group column as the shipped pathway mode writes it: one row "
+            "per gene, the field a comma-separated list of every pathway "
+            "containing that gene, NA for none (pathwayFunc.py:155-162). The "
+            "C++ splits the field and counts the row in each pathway. Nothing "
+            "else in the corpus has a comma in that column, which is how the "
+            "first port of this module came to treat P1,P2 as a group named "
+            "\"P1,P2\" -- inventing a pathway and leaving the two real ones "
+            "a member short each -- and why that went unnoticed.",
+        mode=Mode.PARITY,
+        group_style="pathway",
+        ngenes=600,
+        npathways=40,
+        seed=101,
+    ),
+    Case(
+        name="pathway_duplicate_membership",
+        why="Same shape, but with a sub-name repeated inside the field. The "
+            "C++ does not deduplicate: it appends the row once per "
+            "occurrence, so P1,P1 gives P1 the row twice and its sgRNA count "
+            "is larger than the number of distinct rows in it. Measured "
+            "against the helper, not assumed.",
+        mode=Mode.PARITY,
+        group_style="duplicate",
+        ngenes=400,
+        npathways=25,
+        seed=103,
     ),
     Case(
         name="control_empty",

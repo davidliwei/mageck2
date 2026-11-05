@@ -13,6 +13,8 @@ the distribution).
 
 from __future__ import print_function
 import sys
+import os
+import shlex
 import math
 import types
 import logging
@@ -549,12 +551,74 @@ def crispr_test(tab,ctrlg,testg,varg, destfile,sgrna2genelist,args):
   else:
     return (None,None,None,None)
 
+#: Which RRA implementation to use. This is an internal migration switch, not
+#: a user-facing option: the Python port in mageck2.rra is being validated
+#: against the compiled helper case by case (see tests/parity/), and until that
+#: is complete the compiled helper remains the default. It is read from the
+#: environment rather than added to the command line deliberately -- offering
+#: the choice to users would invite them to make it, and there is no basis on
+#: which they could.
+RRA_IMPL_ENV = "MAGECK2_RRA_IMPL"
+
+
+def rra_implementation():
+  """Return 'cpp' or 'python'."""
+  value=os.environ.get(RRA_IMPL_ENV,'cpp').strip().lower()
+  if value not in ('cpp','python'):
+    logging.error(RRA_IMPL_ENV+' must be "cpp" or "python"; got '+repr(value))
+    sys.exit(-1)
+  return value
+
+
+def rank_association_test_python(file,outfile,cutoff,args):
+  """Run the Python RRA port and write the helper's output format.
+
+  Callers read `outfile` rather than a return value, so this writes the same
+  file the compiled helper would. That keeps the switch confined to this
+  function instead of rippling through merge_rank_summary_files and the
+  gene-summary writers, which is the point of doing the port in two steps:
+  replace the implementation first, remove the file round-trip afterwards.
+  """
+  from mageck2 import rra
+
+  control=None
+  if hasattr(args,'control_sgrna') and args.control_sgrna is not None:
+    control=rra.read_control(args.control_sgrna)
+
+  flags=[]
+  if hasattr(args,'skip_gene'):
+    if args.skip_gene is not None:
+      for g in args.skip_gene:
+        flags+=['--skip-gene',g]
+    else:
+      flags+=['--skip-gene','NA','--skip-gene','na']
+  else:
+    flags+=['--skip-gene','NA']
+  if hasattr(args,'additional_rra_parameters') and args.additional_rra_parameters is not None:
+    # Passed through verbatim to the compiled helper; here it has to be
+    # understood, so an option the port does not implement is an error rather
+    # than something silently dropped.
+    flags+=shlex.split(args.additional_rra_parameters)
+
+  try:
+    result=rra.rank_from_file(file,alpha=cutoff,control=control,flags=flags)
+  except ValueError as e:
+    logging.error('RRA (Python implementation) failed: '+str(e))
+    sys.exit(-1)
+  with open(outfile,'w') as fh:
+    fh.write(result.to_text())
+
+
 def rank_association_test(file,outfile,cutoff,args,adjustcutoff=True):
   if adjustcutoff: # adjust the alpha threshold to 0.05-0.5
     if cutoff<0.05:
       cutoff=0.05
     if cutoff>0.5:
       cutoff=0.5
+  if rra_implementation()=='python':
+    logging.info('Using the Python RRA implementation ('+RRA_IMPL_ENV+'=python).')
+    rank_association_test_python(file,outfile,cutoff,args)
+    return
   #rrapath='/'.join(sys.argv[0].split('/')[:-1]+["../bin/RRA"])
   rrapath='RRA'
   command=rrapath+" -i "+file+" -o "+outfile+" -p "+str(cutoff)

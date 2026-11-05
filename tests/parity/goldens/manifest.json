@@ -136,6 +136,38 @@
       "uses_control": false,
       "why": "--min-number-goodsgrna excludes genes from FDR adjustment (adjustFDR, RRA.cpp:646), which makes them print FDR as the string NA. The port has to reproduce which rows are NA, not just the numbers in the rows that are not."
     },
+    "pathway_duplicate_membership": {
+      "alpha": 0.25,
+      "flags": [],
+      "min_p": 4.9976e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 26,
+      "ngenes": 400,
+      "planted_hits": [
+        "PATHWAY001",
+        "PATHWAY007",
+        "PATHWAY012"
+      ],
+      "uses_control": false,
+      "why": "Same shape, but with a sub-name repeated inside the field. The C++ does not deduplicate: it appends the row once per occurrence, so P1,P1 gives P1 the row twice and its sgRNA count is larger than the number of distinct rows in it. Measured against the helper, not assumed."
+    },
+    "pathway_memberships": {
+      "alpha": 0.25,
+      "flags": [],
+      "min_p": 4.996e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 41,
+      "ngenes": 600,
+      "planted_hits": [
+        "PATHWAY011",
+        "PATHWAY027",
+        "PATHWAY036"
+      ],
+      "uses_control": false,
+      "why": "The group column as the shipped pathway mode writes it: one row per gene, the field a comma-separated list of every pathway containing that gene, NA for none (pathwayFunc.py:155-162). The C++ splits the field and counts the row in each pathway. Nothing else in the corpus has a comma in that column, which is how the first port of this module came to treat P1,P2 as a group named \"P1,P2\" -- inventing a pathway and leaving the two real ones a member short each -- and why that went unnoticed."
+    },
     "permutation_ceiling": {
       "alpha": 0.25,
       "flags": [
@@ -263,18 +295,18 @@
   },
   "oracle": {
     "fingerprint": "RRA sha256:4167572a1a1190309e6fbd8b2417d624630e13e3700ef8273bbbc707012a4111",
-    "git_commit": "ad1cdd75ff241fc6a6b4d68728273470c476df42",
-    "git_describe": "v0.3.0-10-gad1cdd7-dirty",
+    "git_commit": "955e2bb9503cf901d713f99ba3d051dcef8d4e01",
+    "git_describe": "v0.3.0-11-g955e2bb-dirty",
     "implementation": "compiled RRA C++ helper",
     "oracle_source_dirty": false,
     "tree_dirty": true
   },
   "platform": {
     "machine": "arm64",
-    "python": "3.12.12",
+    "python": "3.9.6",
     "system": "Darwin"
   },
-  "recorded_at": "2026-11-04T19:28:13Z",
+  "recorded_at": "2026-11-05T04:25:25Z",
   "recorded_by": "tests/parity/record.py",
   "tolerances": {
     "atol_fdr": 5e-06,
