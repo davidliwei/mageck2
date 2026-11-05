@@ -22,9 +22,12 @@ file still runs and does real work:
 import json
 import pathlib
 import shutil
+import tempfile
 
+import numpy
 import pytest
 
+from mageck2 import rra
 from parity import compare, corpus, runners
 
 GOLDENS = pathlib.Path(__file__).parent / "parity" / "goldens"
@@ -381,3 +384,171 @@ def test_python_runner_reports_a_wrong_port_as_a_failure(stub_port, tmp_path):
     assert not report.ok, (
         "the harness accepted a port that returned a different screen's "
         "results entirely")
+
+
+# --------------------------------------------------------------------------
+# The input contract: what the group column means, and what the two
+# optional columns mean. None of this can be a recorded golden -- the
+# long-name case makes the C++ print two rows under one label, which a
+# name-keyed golden cannot align, and the optional columns are refused
+# rather than reproduced.
+# --------------------------------------------------------------------------
+
+def _flat_input(rows):
+    """``(items, groups, values, lists)`` from ``(sgrna, group, value)``."""
+    return ([r[0] for r in rows], [r[1] for r in rows],
+            [r[2] for r in rows], [0] * len(rows))
+
+
+def test_group_column_is_a_list_not_a_name():
+    """``P1,P2`` makes the row a member of P1 and of P2.
+
+    The group field is comma-separated and the C++ loops over the parts
+    (``fileio.cpp:107-141``, ``:266-287``). mageck2's own pathway mode relies
+    on it -- ``pathwayFunc.py:155-162`` joins every pathway containing a gene
+    into one field -- so reading the field as a single name invents a pathway
+    and shorts each real one a member. ``pathway_memberships`` covers this
+    against the helper; this states the rule in one place.
+    """
+    items, groups, values, lists = _flat_input([
+        ("sg0", "P1,P2", 0.1), ("sg1", "P1", 0.2), ("sg2", "P2", 0.3),
+        ("sg3", "P3", 0.4), ("sg4", "P3", 0.5),
+    ])
+    result = rra.rank(items, groups, values, lists=lists, permutation=10,
+                      permutation_specified=True)
+    counts = dict(zip(result.names, result.items.tolist()))
+    assert counts == {"P1": 2, "P2": 2, "P3": 2}, (
+        "expected sg0 to count in both P1 and P2; got %r" % (counts,))
+
+
+def test_a_repeated_group_name_is_not_deduplicated():
+    """``P1,P1`` gives P1 the row twice.
+
+    The C++ increments ``itemNum`` once per occurrence and appends the item
+    once per occurrence, so the count exceeds the number of distinct rows.
+    Verified against the helper: on a probe input, ``PW1,PW2`` plus
+    ``PW1,PW1`` plus ``PW2`` gave PW1 three items and PW2 two.
+    """
+    items, groups, values, lists = _flat_input([
+        ("sg0", "P1,P1", 0.1), ("sg1", "P1", 0.2),
+    ])
+    result = rra.rank(items, groups, values, lists=lists, permutation=10,
+                      permutation_specified=True)
+    counts = dict(zip(result.names, result.items.tolist()))
+    assert counts == {"P1": 3}, (
+        "a repeated sub-name must not be collapsed; got %r" % (counts,))
+
+
+def test_grouping_keys_on_the_full_name_not_the_stored_label():
+    """Two names agreeing to ``MAX_NAME_LEN - 1`` stay two groups.
+
+    ``copyName`` (``fileio.cpp:44-58``) truncates the label it stores and says
+    so in its warning -- "Grouping is unaffected -- it keys on the full name"
+    -- while ``groupNames`` is keyed on the untruncated string. Keying on the
+    truncated form instead merges distinct genes, which changes their scores
+    and the size of the population the permutation and FDR are computed over.
+
+    Measured against the helper on a probe input built exactly this way: it
+    printed two rows under the same 511-character label, with 4 and 6 sgRNAs
+    and lo-values 3.2594e-03 and 9.1451e-01. The port reproduced both
+    numbers; keying on the truncated name produced one row of 10 instead.
+
+    The row count alone does not catch it, which is worth knowing: in that
+    probe the merge lost one row and the unsplit comma fields gained one, so
+    both bugs together left the total unchanged at 24.
+    """
+    prefix = "x" * (rra.MAX_NAME_LEN - 1)
+    long_a, long_b = prefix + "_AAA", prefix + "_BBB"
+    assert long_a[:rra.MAX_NAME_LEN - 1] == long_b[:rra.MAX_NAME_LEN - 1]
+
+    rows = [("sgA%d" % i, long_a, 0.1 * (i + 1)) for i in range(4)]
+    rows += [("sgB%d" % i, long_b, 0.5 + 0.05 * i) for i in range(6)]
+    items, groups, values, lists = _flat_input(rows)
+    result = rra.rank(items, groups, values, lists=lists, permutation=10,
+                      permutation_specified=True)
+
+    assert len(result.names) == 2, (
+        "the two names must stay two groups; got %r group(s)"
+        % (len(result.names),))
+    assert sorted(result.items.tolist()) == [4, 6]
+    # Both labels are the truncated form, which is what the C++ writes: the
+    # collision is in the output, not in the grouping.
+    assert set(result.names) == {prefix}
+    assert all(len(n) == rra.MAX_NAME_LEN - 1 for n in result.names)
+
+
+def _write_input(path, rows, header="sgrna\tsymbol\tpool\tvalue"):
+    path.write_text(header + "\n" + "".join(r + "\n" for r in rows))
+    return path
+
+
+def test_read_input_accepts_the_neutral_optional_columns():
+    """The six-column form mageck2 itself writes is accepted unchanged.
+
+    ``crisprFunction.py:505`` and ``:529`` write ``prob`` as the literal 1 and
+    only emit rows whose ``chosen`` is 1, so the shipped pipeline must keep
+    working. If this test ever fails, the rejection below has become a
+    regression in the mainline path rather than a guard on an unsupported one.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _write_input(
+            pathlib.Path(tmp) / "input.txt",
+            ["sg0\tG1\tlist\t0.1\t1\t1", "sg1\tG1\tlist\t0.2\t1\t1"],
+            header="sgrna\tsymbol\tpool\tp.low\tprob\tchosen")
+        items, groups, values, pools = rra.read_input(str(path))
+    assert items == ["sg0", "sg1"]
+    assert groups == ["G1", "G1"]
+    assert list(values) == [0.1, 0.2]
+
+
+@pytest.mark.parametrize("row,needle", [
+    ("sg0\tG1\tlist\t0.1\t0.5\t1", "probabilities other than 1"),
+    ("sg0\tG1\tlist\t0.1\t1\t0", "unchosen sgRNAs"),
+])
+def test_read_input_refuses_what_it_cannot_reproduce(row, needle):
+    """A meaningful ``prob`` or ``chosen`` is refused, not ignored.
+
+    Both columns change the answer in the C++: ``prob`` below 1 switches to
+    ``ComputeLoValue_Prob`` (``RRA.cpp:525``), and ``chosen`` of 0 drops the
+    row from its pool's percentiles and from its gene's lo-value while still
+    counting it in that gene's sgRNA total. Reading past them returns
+    different statistics for an accepted input with nothing said about it,
+    which is the one outcome a port must not have. Refusing is a deliberate
+    narrowing of what the Python backend claims to support.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _write_input(pathlib.Path(tmp) / "input.txt", [row])
+        with pytest.raises(ValueError) as excinfo:
+            rra.read_input(str(path))
+    assert needle in str(excinfo.value)
+    assert "MAGECK2_RRA_IMPL=cpp" in str(excinfo.value), (
+        "the error must say how to get the supported behaviour")
+
+
+def test_null_chunking_is_bounded_by_elements_not_rows():
+    """A wide gene must not defeat the chunk limit.
+
+    The bound exists to cap peak memory while the null is built. Counting rows
+    instead of elements makes the cap depend on gene width: at 2**18 rows a
+    100-sgRNA gene would materialize a 262,144 x 100 float64 array, 210 MB,
+    and the reduction holds several arrays of that shape at once. Tiling and
+    saturation libraries really do put that many sgRNAs on one gene.
+    """
+    chunk = 1 << 12
+    widths = []
+
+    class _Recorder:
+        """Counts the draws asked for, which is the chunk's element count."""
+
+        def uniform(self, n):
+            widths.append(n)
+            return numpy.full(n, 0.5, dtype=float)
+
+    rra._null_lo_values(_Recorder(), rows=500, k=100, alpha=0.25,
+                        control_values=None, chunk=chunk)
+    assert widths, "no draws were requested"
+    assert max(widths) <= chunk, (
+        "a chunk asked for %d elements with a limit of %d"
+        % (max(widths), chunk))
+    # And it still has to cover every row exactly once.
+    assert sum(widths) == 500 * 100
