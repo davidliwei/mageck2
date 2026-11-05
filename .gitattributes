@@ -1,0 +1,8 @@
+# The trailing whitespace in this file is the test fixture, not an accident.
+# tests/parity/gsea/corpus.py writes it on purpose so that the
+# `gmt_trailing_whitespace` case can record what mageckGSEA does with a GMT
+# line that ends in spaces: `while(ss.good())` runs one iteration past the
+# last token and a phantom empty gene name joins the set, inflating the Size
+# column. Stripping it would delete the case. Exempt it from the whitespace
+# checks so `git diff --check` stays useful everywhere else.
+tests/parity/gsea/goldens/gmt_trailing_whitespace/sets.gmt -whitespace

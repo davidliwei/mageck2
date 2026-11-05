@@ -83,6 +83,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read (issue #51), and freezing a golden there would promote one build's
   undefined behaviour to a requirement.
 
+- `tests/parity/gsea/` and `tests/test_gsea_parity.py`: the same harness for
+  `mageckGSEA`, with goldens recorded from the current compiled helper. Twenty
+  cases cover both of `parserankfile`'s unrelated scoring branches — `-c 0`
+  derives a gene's score from its line number and had no coverage at all —
+  along with the tie regimes that decide output ordering, and the four
+  degenerate gene sets real GMT files contain: one covering the whole ranked
+  list, one overlapping it not at all, one of duplicates, and one of a single
+  gene.
+
+  Recording the goldens turned up five input-handling bugs in the helper, each
+  confirmed against the binary and each now a corpus case that requires the
+  future port to differ rather than to agree:
+
+  - A GMT file whose last line has no trailing newline loses its last gene set
+    silently. `parsegmt` breaks out of its read loop on the same `getline` that
+    returned the line.
+  - The same in `parserankfile`, and worse: dropping the last gene also lowers
+    the line count every gene's score is divided by, so one missing newline
+    perturbs the whole ranking rather than losing one row.
+  - A blank line anywhere in a GMT file is stored as a gene set named with the
+    empty string. `main` then matches it against the default `--pathway_name`
+    of `""`, takes the single-pathway branch, and reports that one empty set
+    while silently skipping every real one — exiting 0.
+  - `parsegmt` tokenises each line on whitespace rather than on tabs, although
+    GMT is tab-delimited and its second column is free-text description. The
+    description's second and later words are therefore read as gene names.
+    Usually they match nothing and only inflate the reported `Size`, but gene
+    symbols appear in prose descriptions routinely, and one that matches is
+    added to the set: giving a two-gene set the description `response to G01`
+    moved its enrichment score from 5.55e-17 to 0.396226 and its p value from
+    0.9025 to 0.
+  - A GMT line ending in whitespace gains a phantom empty gene name, because
+    `while(ss.good())` runs one iteration past the last token and a failed
+    extraction into a `std::string` leaves it empty rather than untouched. It
+    inflates the reported `Size` by one.
+
+  The enrichment score is not required to agree to the last bit, and the
+  reason is worth recording: `getgseascore_fast` computes
+  `decvalue*(ni-i) + sumincval`, which clang contracts into a fused
+  multiply-add at `-O3` wherever FMA is in the baseline instruction set — it is
+  on arm64, it is not on baseline x86-64. Rebuilding the same source with
+  `-ffp-contract=off` changes three of the twenty goldens, by 2.776e-17 and
+  5.551e-17, in gene sets whose score cancels to zero. So the helper does not
+  agree with itself across compiler flags there, and requiring byte equality
+  would have failed the C++ against its own goldens the first time CI ran on a
+  different architecture. The permutation p values are still required to agree
+  exactly: the 32-bit truncation of `gs_ret::gscore` absorbs the difference
+  before the permutation comparison sees it.
+
 - `mageck2.rra`: a Python implementation of RRA, with a documented array-based
   API — sgRNA names, gene names and values in, a result object out — rather
   than a file path in and a file path out. It is not yet the default: the

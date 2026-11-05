@@ -23,30 +23,14 @@ that produced it travel together.
 """
 
 import dataclasses
-import enum
 
 import numpy as np
+
+from .modes import Mode
 
 #: Columns of the RRA input file, as ``fileio.cpp`` parses them:
 #: ``<item id> <group id> <list id> <value>`` behind a header row.
 INPUT_HEADER = "sgrna\tsymbol\tpool\tvalue"
-
-
-
-class Mode(enum.Enum):
-    """Whether a case is checked against the C++ or against a stated contract.
-
-    ``PARITY`` means the C++ behaviour is well defined and the port must
-    reproduce it. ``CONTRACT`` means the case reaches undefined behaviour in
-    the C++ -- an out-of-bounds read, an unguarded division -- so there is no
-    correct answer to copy. Recording a golden there would freeze whatever the
-    compiler happened to emit on the recording machine into a requirement.
-    Those cases instead assert the behaviour the port is *choosing*, and the
-    choice has to be made deliberately and documented in the test.
-    """
-
-    PARITY = "parity"
-    CONTRACT = "contract"
 
 
 @dataclasses.dataclass(frozen=True)
