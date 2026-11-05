@@ -92,8 +92,13 @@ def mageck_removetmprra(args):
   else:
     tmpfile=[args.output_prefix+'.pathway.low.tmp',args.output_prefix+'.pathway.high.tmp',args.output_prefix+'.pathway.low.txt',args.output_prefix+'.pathway.high.txt']
 
+  # Removed in-process; see magecktest_removetmp. The output prefix is a
+  # user-supplied path and must not be handed to a shell as a fragment.
   for f in tmpfile:
-    systemcall('rm '+f,cmsg=False)
+    try:
+      os.remove(f)
+    except OSError as e:
+      logging.warning('Could not remove temporary file '+f+': '+str(e))
 
 def mageck_pathwayrra(args):
   """perform pathway anaylsis using RRA
