@@ -128,6 +128,32 @@ int parseArguments(int argc, char* argv[],CallingArgs& args){
   return 0;
 }
 
+//Strip leading and trailing whitespace. GMT fields are free text and real
+//files carry stray spaces and CRs; a member kept with them attached matches
+//no gene, and an all-whitespace field used to become a phantom member.
+static string trimws(const string &s){
+  string::size_type b=s.find_first_not_of(" \t\r\n\v\f");
+  if(b==string::npos) return "";
+  string::size_type e=s.find_last_not_of(" \t\r\n\v\f");
+  return s.substr(b,e-b+1);
+}
+
+//Split on tabs, keeping empty fields: GMT is tab-delimited, so the field
+//*positions* carry meaning and a run of tabs must not collapse.
+static void splittabs(const string &line, vector<string> &out){
+  out.clear();
+  string::size_type start=0;
+  while(true){
+    string::size_type tab=line.find('\t',start);
+    if(tab==string::npos){
+      out.push_back(line.substr(start));
+      return;
+    }
+    out.push_back(line.substr(start,tab-start));
+    start=tab+1;
+  }
+}
+
 int parsegmt(string gmtfile,pathmap& pm){
   ifstream ifs(gmtfile.c_str());
   if(!ifs.is_open()){  
@@ -135,25 +161,32 @@ int parsegmt(string gmtfile,pathmap& pm){
     return -1;
   }
   string oneline;
-  int ncount=0;
-  while(true){
-    getline(ifs,oneline);
-    ncount++;
-    if( ifs.eof())break;
-    stringstream ss(oneline);
-    int nfield=0;
-    string ssf;
-    string pname;
+  vector<string> fields;
+  //getline() in the condition, not read-then-test-eof: a final line with no
+  //trailing newline is a line. The old loop read it, saw eofbit set by that
+  //same read, and broke before using it, so the last gene set of any file
+  //not ending in a newline was silently dropped.
+  while(getline(ifs,oneline)){
+    //A blank line is not a gene set. It used to be stored under the empty
+    //name, which then matched the default --pathway-name of "" -- so main()
+    //took its single-set branch, reported that one empty set, and skipped
+    //every real set in the file while exiting 0.
+    if(trimws(oneline).empty()) continue;
+
+    //GMT is tab-delimited: <name> <description> <member>... The description
+    //is free text, so splitting on whitespace read its second and later words
+    //as members. That inflated Size on essentially every real GMT file --
+    //MSigDB descriptions are prose -- and a description word that happened to
+    //match a gene symbol was not merely counted but scored.
+    splittabs(oneline,fields);
+    string pname=trimws(fields[0]);
+    if(pname.empty()) continue;
     vector<string> vs;
-    while(ss.good()){
-      nfield++;
-      ss>>ssf;
-      if(nfield==1){
-        pname=ssf;
-      }
-      if(nfield>2){
-        vs.push_back(ssf);
-      }
+    for(size_t i=2;i<fields.size();i++){
+      string member=trimws(fields[i]);
+      //Skip empties rather than storing them: a line ending in a tab or a
+      //space used to gain a phantom member and report a Size one too large.
+      if(!member.empty()) vs.push_back(member);
     }
     pm[pname]=vs;
   }
@@ -181,10 +214,13 @@ int parserankfile(string rankf,vector<string>& gname, vector<double>& gscore, Ca
   if(args.skipheader){
     getline(ifs,oneline);
   }
-  while(true){
-    getline(ifs,oneline);
+  //As in parsegmt: getline() in the condition, so a final line with no
+  //trailing newline is used rather than read and discarded. Dropping it here
+  //was worse than losing one row, because ncount below is the divisor every
+  //gene's weight is scaled by -- one missing newline perturbed the whole
+  //ranking rather than the end of it.
+  while(getline(ifs,oneline)){
     ncount++;
-    if( ifs.eof())break;
     stringstream ss(oneline);
     int nfield=0;
     string ssf;
@@ -214,6 +250,15 @@ int parserankfile(string rankf,vector<string>& gname, vector<double>& gscore, Ca
     gscore.push_back(corval);
   }
   ifs.close();
+  //Restore the divisor this function has always used. The loop above used to
+  //run once more than there were lines -- the getline that reported end of
+  //file still incremented ncount -- so the weights were divided by one more
+  //than the number of genes. That is an odd normalisation, but it is the one
+  //every published MAGeCK2 number was computed with, and correcting it here
+  //would change every result for every user while fixing no bug that was
+  //reported. It is preserved deliberately; changing it is a separate
+  //decision from fixing the input handling.
+  ncount++;
   //Normalize the values
   if(!providecor){
     for(int i=0;i<gscore.size();i++){

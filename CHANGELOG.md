@@ -280,6 +280,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `mageckGSEA` reads its two input files correctly. Five input-handling bugs,
+  all of which produced plausible-looking output and none of which reported
+  anything. The most consequential affects essentially every real GMT file:
+
+  - **A gene set's size was overstated, and sometimes its score was wrong.**
+    GMT is tab-delimited and its second column is a free-text description, but
+    `parsegmt` split lines on *whitespace* and treated every token after the
+    second as a gene. The description's second and later words therefore
+    joined the gene set. Usually they match nothing and only inflate the
+    `Size` column — the bundled `tests/data/pathways.gmt` has five genes per
+    set and was reported as 7 — but gene symbols appear in prose descriptions
+    constantly, and one that matches is *scored*: giving a two-gene set the
+    description `response to G01` moved its enrichment score from 5.55e-17 to
+    0.396226 and its p value from 0.9025 to 0, because `G01` was the
+    top-ranked gene. Lines are now split on tabs.
+  - **A blank line anywhere in a GMT file suppressed the entire analysis.**
+    It was stored as a gene set named with the empty string, which then
+    matched the default `--pathway-name` of `""`, so `main` took its
+    single-set branch, reported that one empty set, and silently skipped every
+    real set in the file — exiting 0, having written an output file that looks
+    like a result. Blank lines are now ignored.
+  - **A file not ending in a newline lost its last line.** Both readers used
+    `while(true){ getline(...); if(eof()) break; }`, and the `getline` that
+    consumes a final unterminated line also sets `eofbit`, so the loop broke
+    before using what it had just read. In a GMT file that silently dropped
+    the last gene set. In a ranked gene list it was worse than losing one row:
+    the dropped gene also lowered the line count every gene's weight is
+    divided by, so one missing newline perturbed the whole ranking.
+  - **A GMT line ending in whitespace gained a phantom member**, because
+    `while(ss.good())` runs one iteration past the last token and a failed
+    extraction into a `std::string` leaves it empty rather than untouched.
+    It matched nothing but inflated `Size` by one.
+
+  Nothing changes for input that was already well formed. That is asserted
+  rather than claimed: all fifteen well-formed cases in `tests/parity/gsea/`
+  still reproduce their goldens — recorded from the *previous* build —
+  bit for bit, and exactly the five malformed cases changed.
+
+  The ranked list's weights are still divided by one more than the number of
+  genes. The old loop ran once past the end and incremented that counter
+  anyway, so correcting the loop would have changed the divisor too, and with
+  it every number MAGeCK2 has ever produced. It is preserved deliberately;
+  whether that normalisation should change is a separate decision from fixing
+  the input handling, and is not made here.
+
+  The five cases were previously classified in the parity harness as
+  divergences — behaviour the Python port was required to *differ* from.
+  Fixing the helper is the better answer while the helper is still what ships,
+  so they are ordinary parity cases now, and the property they carry is
+  required of both implementations: the answer on a malformed file must equal
+  the answer on its repair. `mageckGSEA` and `mageck2.gsea` now produce
+  byte-identical output on every case, the bundled GMT included.
+
 - The Python RRA backend reads the group column as the list it is. RRA's second
   field is comma-separated and a row belongs to *every* name in it
   (`fileio.cpp:107`, `:266`), which is exactly how `mageck2 pathway --method
