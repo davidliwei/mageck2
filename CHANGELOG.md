@@ -200,7 +200,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and there is no basis on which they could.
 
   The two implementations agree exactly, not merely closely. Across the
-  thirteen recorded cases `lo_value`, `p` and `FDR` each deviate by zero at the
+  fifteen recorded cases `lo_value`, `p` and `FDR` each deviate by zero at the
   precision the output file carries, with no change in gene ranking: the
   bundled Lehmer generator is reproduced bit for bit, so both implementations
   draw the same permutation null rather than two samples from the same
@@ -279,6 +279,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   column index is 0-based rather than leaving it to be inferred from the default.
 
 ### Fixed
+
+- The Python RRA backend now reports control sgRNAs that are absent from the
+  ranked list, which it had been computing and discarding. The compiled helper
+  writes one warning per missing name (`RRA.cpp:460`) and `mageck2` logs it;
+  the Python path was silent, so a user who mistyped a control name, or whose
+  control guides were filtered out upstream, lost the only indication of it.
+  No p value changes -- a name that matches no sgRNA never entered the null.
+
+  Found by validating against a real 77,441-sgRNA screen rather than by a
+  test: five of the supplied control guides were missing, the compiled helper
+  said so twelve times and the Python backend said nothing at all. The two
+  remaining warnings are the helper's own `while (!eof())` artifact, which
+  reports an sgRNA with an empty name; the port drops blank lines and so
+  reports the five real names and not the phantom.
 
 - `mageckGSEA` reads its two input files correctly. Five input-handling bugs,
   all of which produced plausible-looking output and none of which reported

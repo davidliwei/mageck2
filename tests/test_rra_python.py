@@ -15,6 +15,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import numpy as np
 import pytest
@@ -253,3 +254,44 @@ def test_both_implementations_give_the_same_gene_summary(tmp_path):
                 "compiled helper against itself")
 
     assert summaries["cpp"] == summaries["python"]
+
+
+def test_a_control_sgrna_absent_from_the_ranked_list_is_reported():
+    """The port must not be quieter than the helper it replaces.
+
+    The C++ warns once per control sgRNA that never appears in the ranked
+    list (``RRA.cpp:460``) and ``mageck2`` logs it. Those names contribute
+    nothing to the null, so this changes no p value -- but it is how a user
+    learns that a control name is mistyped, or that guides they asked for
+    were filtered out upstream. Found on a real 77,441-sgRNA screen, where
+    five of the supplied control guides were absent and the C++ backend
+    warned twelve times while the Python backend said nothing at all.
+    """
+    items = ["sg%02d" % i for i in range(12)]
+    groups = ["GENE%d" % (i // 4) for i in range(12)]
+    values = [0.01 * (i + 1) for i in range(12)]
+
+    result = rra.rank(items, groups, values,
+                      control=["sg00", "sg01", "sg02", "ZZ_ABSENT", "AA_GONE"])
+    assert result.missing_control == ["AA_GONE", "ZZ_ABSENT"], (
+        "the names of control sgRNAs not in the ranked list must reach the "
+        "caller, which is what lets the pipeline warn about them; the order "
+        "is the C++'s, which walks a std::map and so reports them sorted")
+
+    # An all-present control list reports nothing, so the warning cannot
+    # become noise on a well-formed run.
+    quiet = rra.rank(items, groups, values, control=["sg00", "sg01", "sg02"])
+    assert quiet.missing_control == []
+
+    # A blank line in a control file is not a missing sgRNA. The C++ reader
+    # inserts an empty-named entry and warns about it; read_control drops it,
+    # so the port must not acquire that phantom name along with the warning.
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
+        fh.write("sg00\n\nsg01\n")
+        path = fh.name
+    try:
+        assert rra.read_control(path) == ["sg00", "sg01"]
+        named = rra.rank(items, groups, values, control=rra.read_control(path))
+        assert named.missing_control == []
+    finally:
+        os.unlink(path)
