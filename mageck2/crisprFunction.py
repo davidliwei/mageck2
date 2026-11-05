@@ -15,6 +15,7 @@ from __future__ import print_function
 import sys
 import os
 import shlex
+import shutil
 import math
 import types
 import logging
@@ -614,6 +615,13 @@ def rank_association_test_python(file,outfile,cutoff,args):
   except ValueError as e:
     logging.error('RRA (Python implementation) failed: '+str(e))
     sys.exit(-1)
+  # The compiled helper writes one of these to stderr per missing control
+  # sgRNA (RRA.cpp:460) and the caller logs it as a command message. Keep the
+  # diagnostic when the Python backend is in use: it changes no p value, but
+  # it is how a user learns that control sgRNAs they asked for are not in the
+  # ranked list -- a mistyped name, or guides filtered out upstream.
+  for name in result.missing_control:
+    logging.warning('sgRNA '+name+' not found in the ranked list.')
   with open(outfile,'w') as fh:
     fh.write(result.to_text())
 
@@ -631,27 +639,41 @@ def rank_association_test(file,outfile,cutoff,args,adjustcutoff=True):
   logging.info('Using the compiled RRA helper ('+RRA_IMPL_ENV+'=cpp).')
   #rrapath='/'.join(sys.argv[0].split('/')[:-1]+["../bin/RRA"])
   rrapath='RRA'
-  command=rrapath+" -i "+file+" -o "+outfile+" -p "+str(cutoff)
+  # Built as a list, not a shell string. --control and the input/output paths
+  # are user-supplied, and a path is allowed to contain characters the shell
+  # reads as syntax: "~/Dropbox (Personal)/ctrl.txt" made this call die with
+  # "syntax error near unexpected token `('" before RRA ever started. The
+  # Python backend was unaffected because it never builds a command line.
+  command=[rrapath,"-i",file,"-o",outfile,"-p",str(cutoff)]
   if hasattr(args,'control_sgrna') and args.control_sgrna != None :
-    command+=" --control "+args.control_sgrna
+    command+=["--control",args.control_sgrna]
   if hasattr(args,'skip_gene'): 
     if args.skip_gene != None :
       for g in args.skip_gene:
-        command+=" --skip-gene "+g
+        command+=["--skip-gene",g]
     else:
-      command+=" --skip-gene NA --skip-gene na "
+      command+=["--skip-gene","NA","--skip-gene","na"]
   else:
-    command+=" --skip-gene NA "
-  # command+=" --min-number-goodsgrna 2 "
+    command+=["--skip-gene","NA"]
+  # command+=["--min-number-goodsgrna","2"]
   if hasattr(args,"additional_rra_parameters") and args.additional_rra_parameters != None:
-    command+=" "+args.additional_rra_parameters+" "
+    # Split the same way the Python backend splits it, so the two agree on
+    # what the user wrote rather than one of them re-splitting via the shell.
+    command+=shlex.split(args.additional_rra_parameters)
   systemcall(command,check=True)
 
 
 def magecktest_removetmp(prefix):
+  # Removed in-process rather than by shelling out to rm. The prefix comes
+  # from -n and so may contain characters the shell reads as syntax, which
+  # made the removal fail silently (cmsg=False hid the shell's complaint) and
+  # left the four temporary files behind next to the real output.
   tmpfile=[prefix+'.plow.txt',prefix+'.phigh.txt',prefix+'.gene.low.txt',prefix+'.gene.high.txt']
   for f in tmpfile:
-    systemcall('rm '+f,cmsg=False)
+    try:
+      os.remove(f)
+    except OSError as e:
+      logging.warning('Could not remove temporary file '+f+': '+str(e))
 
 
 def magecktest_parsetreatmentsfromday0(args,samplelabelindex):
@@ -831,8 +853,14 @@ def magecktest_main(args):
       if len(supergroup_treat)>1 or args.day0_label != None: # for more than 1 comparisons, set up the basic gene_summary.txt
         # for more than 1 -t -c pairs, use the results of the first pair as the default sgrna_summary.txt and gene_summary.txt 
         # if day0_label is specified, copy the files to output_prefix. This will generate files consistent with mageck-vispr
-        systemcall('cp '+cp_prefix+'.gene_summary.txt '+args.output_prefix+'.gene_summary.txt',cmsg=False)
-        systemcall('cp '+cp_prefix+'.sgrna_summary.txt '+args.output_prefix+'.sgrna_summary.txt',cmsg=False)
+        # Copied in-process: both prefixes are user-supplied paths, and a cp
+        # built as a shell string fails on any path the shell reads as syntax.
+        for suffix in ('.gene_summary.txt','.sgrna_summary.txt'):
+          try:
+            shutil.copyfile(cp_prefix+suffix,args.output_prefix+suffix)
+          except OSError as e:
+            logging.warning('Could not copy '+cp_prefix+suffix+' to '
+                            +args.output_prefix+suffix+': '+str(e))
     if cpindex>0:
       if cpindex>1:
         label1=''

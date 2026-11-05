@@ -1,0 +1,8 @@
+GMT file: /Users/wei.li/project/mageck2/tests/parity/gsea/goldens/degenerate_sets/sets.gmt
+Rank file: /Users/wei.li/project/mageck2/tests/parity/gsea/goldens/degenerate_sets/rank.txt
+Output file: /Users/wei.li/project/mageck2/tests/parity/gsea/goldens/degenerate_sets/cpp.out.txt
+pathway size:36
+rank size:400
+Permutations:200
+Permutation seed:123456
+....................................

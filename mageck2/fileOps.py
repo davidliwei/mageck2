@@ -14,19 +14,35 @@ from __future__ import print_function
 import sys
 import math
 import logging
+import shlex
 import subprocess
 
   
 def systemcall(command, cmsg=True, check=False):
-  """Run a shell command and return its combined stdout/stderr as text.
+  """Run a command and return its combined stdout/stderr as text.
+
+  ``command`` is either a string, run through a shell as before, or a list of
+  arguments, run without one. Pass a list whenever any argument is a path that
+  came from the user: a shell string has to be quoted correctly for every
+  metacharacter a path may contain, and getting that wrong is not a quoting
+  nuisance but a failure to run at all -- ``/Users/x/Dropbox (Personal)/ctrl.txt``
+  made the RRA call die with ``syntax error near unexpected token `('``. A list
+  has no quoting to get wrong. Keep a string only where the shell is actually
+  wanted, for a glob or a ``cd x; y`` sequence.
 
   When ``check`` is True, a non-zero exit status aborts with a clear error
   instead of silently returning, so a missing or failing helper binary (e.g.
   RRA or mageckGSEA) surfaces here rather than as an opaque downstream
   ``FileNotFoundError`` on an output file the helper never wrote.
   """
-  logging.info('Running command: '+command)
-  proc=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=True)
+  useshell=not isinstance(command,(list,tuple))
+  if useshell:
+    printable=command
+  else:
+    command=[str(a) for a in command]
+    printable=' '.join(shlex.quote(a) for a in command)
+  logging.info('Running command: '+printable)
+  proc=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=useshell)
   t=proc.communicate()[0].decode("utf-8")
   #tmsg=t.stdout.read()
   if cmsg:
@@ -35,8 +51,8 @@ def systemcall(command, cmsg=True, check=False):
       logging.info('  '+t0)
     logging.info('End command message.')
   if check and proc.returncode!=0:
-    program=command.strip().split()[0]
-    logging.error('Command failed (exit status '+str(proc.returncode)+'): '+command)
+    program=command.strip().split()[0] if useshell else command[0]
+    logging.error('Command failed (exit status '+str(proc.returncode)+'): '+printable)
     for t0 in t.split('\n'):
       logging.error('  '+t0)
     if proc.returncode==127:

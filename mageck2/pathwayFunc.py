@@ -13,6 +13,7 @@ the distribution).
 
 from __future__ import print_function
 from mageck2.crisprFunction import *
+import os
 import random
 import sys
 import logging
@@ -91,8 +92,13 @@ def mageck_removetmprra(args):
   else:
     tmpfile=[args.output_prefix+'.pathway.low.tmp',args.output_prefix+'.pathway.high.tmp',args.output_prefix+'.pathway.low.txt',args.output_prefix+'.pathway.high.txt']
 
+  # Removed in-process; see magecktest_removetmp. The output prefix is a
+  # user-supplied path and must not be handed to a shell as a fragment.
   for f in tmpfile:
-    systemcall('rm '+f,cmsg=False)
+    try:
+      os.remove(f)
+    except OSError as e:
+      logging.warning('Could not remove temporary file '+f+': '+str(e))
 
 def mageck_pathwayrra(args):
   """perform pathway anaylsis using RRA
@@ -288,49 +294,79 @@ def mageck_pathwaygsa_fast(args):
   if args.single_ranking:
     columnid=args.ranking_column
     outputfile=args.output_prefix+'.pathway_summary.txt'
-    gseacommand="mageckGSEA "
-    gseacommand+=" -s "
-    gseacommand+=" -H "  # gene_ranking is a gene_summary file with a header row
-    gseacommand+=" -c "+str(columnid)+" "
-    gseacommand+=" -p "+str(args.permutation)
-    gseacommand+=" -g \""+args.gmt_file+"\" "
-    gseacommand+=" -r \""+args.gene_ranking+"\" "
-    gseacommand+=" -o "+outputfile+" "
-    logging.info("GSEA command: "+gseacommand)
-    systemcall(gseacommand,check=True)
+    run_gsea(args,columnid,outputfile,"")
     # columnid=2; # default: 3rd column (neg. selected p values)
   else:
     rraout_low=args.output_prefix+'.pathway.low.txt'
     rraout_high=args.output_prefix+'.pathway.high.txt'
     #
     columnid=args.ranking_column
-    gseacommand="mageckGSEA "
-    gseacommand+=" -s "
-    gseacommand+=" -H "  # gene_ranking is a gene_summary file with a header row
-    gseacommand+=" -c "+str(columnid)+" "
-    gseacommand+=" -p "+str(args.permutation)
-    gseacommand+=" -g \""+args.gmt_file+"\" "
-    gseacommand+=" -r \""+args.gene_ranking+"\" "
-    gseacommand+=" -o "+rraout_low+" "
-    logging.info("GSEA command for negative selection: "+gseacommand)
-    systemcall(gseacommand,check=True)
+    run_gsea(args,columnid,rraout_low," for negative selection")
     #
     columnid=args.ranking_column_2; # columnid=6 if sgRNA number in positive selection is not omitted
-    gseacommand="mageckGSEA "
-    gseacommand+=" -s "
-    gseacommand+=" -H "  # gene_ranking is a gene_summary file with a header row
-    gseacommand+=" -c "+str(columnid)+" "
-    gseacommand+=" -p "+str(args.permutation)
-    gseacommand+=" -g \""+args.gmt_file+"\" "
-    gseacommand+=" -r \""+args.gene_ranking+"\" "
-    gseacommand+=" -o "+rraout_high+" "
-    logging.info("GSEA command for positive selection: "+gseacommand)
-    systemcall(gseacommand,check=True)
+    run_gsea(args,columnid,rraout_high," for positive selection")
     
     # merge different files
     merge_gsea_rank_files(rraout_low,rraout_high,args.output_prefix+'.pathway_summary.txt',args)
   if args.keep_tmp==False:
     mageck_removetmprra(args)
+
+#: Which GSEA implementation to use: "cpp" for the compiled mageckGSEA helper
+#: or "python" for mageck2.gsea. The helper stays the default until the port
+#: has been checked against real screens, which is how the RRA port was
+#: introduced too. Read from the environment rather than added to the command
+#: line deliberately: offering the choice to users would invite them to make
+#: it, and there is no basis on which they could.
+GSEA_IMPL_ENV = "MAGECK2_GSEA_IMPL"
+DEFAULT_GSEA_IMPL = "cpp"
+
+
+def gsea_implementation():
+  """Return 'cpp' or 'python'."""
+  value=os.environ.get(GSEA_IMPL_ENV,DEFAULT_GSEA_IMPL).strip().lower()
+  if value not in ('cpp','python'):
+    logging.error(GSEA_IMPL_ENV+' must be "cpp" or "python"; got '+repr(value))
+    sys.exit(-1)
+  return value
+
+
+def run_gsea(args,columnid,outputfile,what):
+  """Run GSEA for one ranking column, with whichever implementation is selected.
+
+  The three call sites differed only in the ranking column, the output path and
+  the wording of one log line, so they share this. `what` is that wording.
+
+  The Python path writes the same file the helper would rather than returning
+  the result object, which keeps the switch confined here instead of rippling
+  through merge_gsea_rank_files. That is the same two-step the RRA port used:
+  replace the implementation first, remove the file round-trip afterwards.
+  """
+  if gsea_implementation()=='python':
+    logging.info('Using the Python GSEA implementation ('+GSEA_IMPL_ENV+'=python).')
+    from mageck2 import gsea
+    try:
+      result=gsea.enrich_from_file(args.gmt_file,args.gene_ranking,
+                                   score_column=int(columnid),
+                                   perms=int(args.permutation),
+                                   sort_by_p=True,  # -s
+                                   skip_header=True)  # -H
+    except (ValueError,OSError) as e:
+      logging.error('GSEA (Python implementation) failed: '+str(e))
+      sys.exit(-1)
+    with open(outputfile,'w') as fh:
+      fh.write(result.to_text())
+    return
+  gseacommand="mageckGSEA "
+  gseacommand+=" -s "
+  gseacommand+=" -H "  # gene_ranking is a gene_summary file with a header row
+  gseacommand+=" -c "+str(columnid)+" "
+  gseacommand+=" -p "+str(args.permutation)
+  gseacommand+=" -g \""+args.gmt_file+"\" "
+  gseacommand+=" -r \""+args.gene_ranking+"\" "
+  gseacommand+=" -o "+outputfile+" "
+  logging.info("GSEA command"+what+": "+gseacommand)
+  systemcall(gseacommand,check=True)
+
 
 def merge_gsea_rank_files(lowfile,highfile,outfile,args):
   """

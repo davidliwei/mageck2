@@ -1,0 +1,2 @@
+Pathway	Size	ES	p	p_permutation	FDR	Ranking	Hits	LFC
+SET_006	57	0.108225	0.404177	0.765	0.765	1	8	0

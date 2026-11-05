@@ -15,6 +15,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import numpy as np
 import pytest
@@ -269,3 +270,95 @@ def test_both_implementations_give_the_same_gene_summary(tmp_path):
                 "compiled helper against itself")
 
     assert summaries["cpp"] == summaries["python"]
+
+
+def test_a_control_path_with_shell_metacharacters_still_runs(tmp_path):
+    """A user's path is not a shell fragment.
+
+    The RRA invocation used to be built by concatenating a shell string, so a
+    ``--control`` path containing characters the shell reads as syntax killed
+    the run before RRA started: ``/Users/x/Dropbox (Personal)/ctrl.txt`` gave
+    ``/bin/sh: syntax error near unexpected token `('`` and the whole command
+    failed. Found on a real screen stored under a Dropbox path, where three of
+    seven runs died this way on the default backend while the Python backend
+    completed, because it never builds a command line at all.
+
+    This drives the compiled helper, since that is the path that broke.
+    """
+    if shutil.which("RRA") is None or shutil.which("mageck2") is None:
+        pytest.skip("needs an installed mageck2 and the compiled helper")
+
+    counts = tmp_path / "counts.txt"
+    rows = ["sgRNA\tGene\tctl\ttrt"]
+    for g in range(8):
+        for s in range(4):
+            base = 100 + 10 * s
+            hit = 20 if g == 0 else base
+            rows.append("sg_%d_%d\tGENE%d\t%d\t%d" % (g, s, g, base, hit))
+    # Control sgRNAs need their own gene so they are not the gene under test.
+    ctrl_names = []
+    for s in range(8):
+        name = "ctrl_%d" % s
+        ctrl_names.append(name)
+        rows.append("%s\tCTRLGENE\t%d\t%d" % (name, 100 + s, 100 + s))
+    counts.write_text("\n".join(rows) + "\n")
+
+    # The directory name is the point of the test.
+    nasty = tmp_path / "Dropbox (Personal)"
+    nasty.mkdir()
+    control = nasty / "ctrl list.txt"
+    control.write_text("\n".join(ctrl_names) + "\n")
+
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    env = dict(os.environ, MAGECK2_RRA_IMPL="cpp")
+    proc = subprocess.run(
+        ["mageck2", "test", "-k", str(counts), "-n", "out",
+         "-t", "trt", "-c", "ctl",
+         "--norm-method", "control", "--control-sgrna", str(control)],
+        cwd=str(workdir), env=env, capture_output=True, text=True)
+
+    assert "syntax error" not in proc.stdout + proc.stderr, (
+        "the control path reached the shell as syntax rather than as a path")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert (workdir / "out.gene_summary.txt").exists(), (
+        "RRA produced no gene summary")
+def test_a_control_sgrna_absent_from_the_ranked_list_is_reported():
+    """The port must not be quieter than the helper it replaces.
+
+    The C++ warns once per control sgRNA that never appears in the ranked
+    list (``RRA.cpp:460``) and ``mageck2`` logs it. Those names contribute
+    nothing to the null, so this changes no p value -- but it is how a user
+    learns that a control name is mistyped, or that guides they asked for
+    were filtered out upstream. Found on a real 77,441-sgRNA screen, where
+    five of the supplied control guides were absent and the C++ backend
+    warned twelve times while the Python backend said nothing at all.
+    """
+    items = ["sg%02d" % i for i in range(12)]
+    groups = ["GENE%d" % (i // 4) for i in range(12)]
+    values = [0.01 * (i + 1) for i in range(12)]
+
+    result = rra.rank(items, groups, values,
+                      control=["sg00", "sg01", "sg02", "ZZ_ABSENT", "AA_GONE"])
+    assert result.missing_control == ["AA_GONE", "ZZ_ABSENT"], (
+        "the names of control sgRNAs not in the ranked list must reach the "
+        "caller, which is what lets the pipeline warn about them; the order "
+        "is the C++'s, which walks a std::map and so reports them sorted")
+
+    # An all-present control list reports nothing, so the warning cannot
+    # become noise on a well-formed run.
+    quiet = rra.rank(items, groups, values, control=["sg00", "sg01", "sg02"])
+    assert quiet.missing_control == []
+
+    # A blank line in a control file is not a missing sgRNA. The C++ reader
+    # inserts an empty-named entry and warns about it; read_control drops it,
+    # so the port must not acquire that phantom name along with the warning.
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
+        fh.write("sg00\n\nsg01\n")
+        path = fh.name
+    try:
+        assert rra.read_control(path) == ["sg00", "sg01"]
+        named = rra.rank(items, groups, values, control=rra.read_control(path))
+        assert named.missing_control == []
+    finally:
+        os.unlink(path)
