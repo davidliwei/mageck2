@@ -280,6 +280,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The RRA helper is no longer invoked through a shell, so a path containing
+  characters the shell reads as syntax works. `--control-sgrna
+  "~/Dropbox (Personal)/guides.txt"` previously failed with
+  `/bin/sh: syntax error near unexpected token `('` before RRA started, and
+  the whole run aborted. The command is now built as an argument list, which
+  has no quoting to get wrong. `--additional-rra-parameters` is split with
+  `shlex` so both backends agree on what the user wrote.
+
+  Temporary-file cleanup and the multi-comparison summary copy had the same
+  defect against the `-n` prefix, and ran with messages suppressed, so they
+  failed silently and left `.plow.txt`, `.phigh.txt`, `.gene.low.txt` and
+  `.gene.high.txt` behind. Both now use `os.remove` and `shutil.copyfile` and
+  log a warning if they fail.
+
+  Found by running mageck2 against a real screen stored under a Dropbox path:
+  three of seven archived comparisons died this way on the default backend,
+  while the Python backend completed all seven, because it never builds a
+  command line. The compiled `mageckGSEA` invocation already quoted its
+  paths and was not affected.
 - The Python RRA backend now reports control sgRNAs that are absent from the
   ranked list, which it had been computing and discarding. The compiled helper
   writes one warning per missing name (`RRA.cpp:460`) and `mageck2` logs it;
