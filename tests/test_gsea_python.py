@@ -301,12 +301,12 @@ def _gene_summary(tmp_path):
 def test_both_implementations_give_the_same_pathway_summary(tmp_path):
     """A real ``mageck2 pathway`` run, both ways.
 
-    Everything but ``Size`` must agree exactly. ``Size`` is expected to differ
-    on the bundled GMT, because its descriptions are three words each and the
-    helper counts two of those words as members -- the divergence
-    ``test_a_description_with_spaces_does_not_become_gene_names`` covers. That
-    column is therefore compared separately rather than excused in bulk, so a
-    port that got any *other* column wrong still fails here.
+    Every column must agree exactly, ``Size`` included. It was once exempt:
+    the bundled GMT's descriptions are three words each, and the helper used
+    to tokenize the GMT on whitespace and count two of those words as set
+    members, so it reported 7 where the port reported 5. That was a bug in the
+    helper, fixed in the C++ rather than imitated in the port, and the two now
+    agree on this fixture byte for byte.
     """
     gene_summary = _gene_summary(tmp_path)
 
@@ -331,17 +331,35 @@ def test_both_implementations_give_the_same_pathway_summary(tmp_path):
     py_rows = [ln.split("\t") for ln in summaries["python"].splitlines()]
     assert len(cpp_rows) == len(py_rows)
 
-    size = cpp_rows[0].index("Size") if "Size" in cpp_rows[0] else 1
     for cpp_row, py_row in zip(cpp_rows[1:], py_rows[1:]):
         assert cpp_row[0] == py_row[0], "row order differs"
+        assert len(cpp_row) == len(py_row), (
+            "%s has %d columns one way and %d the other"
+            % (cpp_row[0], len(cpp_row), len(py_row)))
         for column, (a, b) in enumerate(zip(cpp_row, py_row)):
-            if column == size:
-                continue
             assert a == b, (
-                "column %d of %s differs: %r vs %r"
-                % (column, cpp_row[0], a, b))
+                "column %d (%s) of %s differs: %r vs %r"
+                % (column, cpp_rows[0][column], cpp_row[0], a, b))
 
-    # And the divergence is real in this very fixture, not hypothetical.
-    assert cpp_rows[1][size] != py_rows[1][size], (
-        "the bundled GMT no longer demonstrates the description bug, so this "
-        "test's Size exemption is now hiding a real disagreement")
+    # Agreement alone would also hold if both sides were wrong in the same
+    # way, so check the sizes against the GMT itself. Every description here
+    # is multi-word, which is exactly what a whitespace-tokenizing parser
+    # turns into two extra members per set -- so this pins the column that
+    # used to be exempt to ground truth, not just to the other backend.
+    members = {}
+    for line in GMT.read_text().splitlines():
+        fields = line.split("\t")
+        if len(fields) <= 2:
+            continue
+        members[fields[0]] = len(fields) - 2
+        assert " " in fields[1], (
+            "%s no longer has a multi-word description, so this test can no "
+            "longer tell a whitespace-tokenizing parser from a correct one"
+            % fields[0])
+    assert members, "the bundled GMT has no usable rows"
+
+    num = cpp_rows[0].index("num")
+    for cpp_row in cpp_rows[1:]:
+        assert int(cpp_row[num]) == members[cpp_row[0]], (
+            "%s: reported size %s, but the GMT lists %d members"
+            % (cpp_row[0], cpp_row[num], members[cpp_row[0]]))
