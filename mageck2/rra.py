@@ -283,7 +283,7 @@ class RRAResult:
     HEADER = "group_id\titems_in_group\tlo_value\tp\tFDR\tgoodsgrna"
 
     def __init__(self, names, items, lo_value, p, fdr, goodsgrna, excluded,
-                 suppressed):
+                 suppressed, missing_control=()):
         self.names = list(names)
         self.items = np.asarray(items, dtype=np.int64)
         self.lo_value = np.asarray(lo_value, dtype=np.float64)
@@ -296,6 +296,14 @@ class RRAResult:
         #: Genes made up entirely of control sgRNAs, which the C++ omits from
         #: the output altogether (``fileio.cpp:331``).
         self.suppressed = np.asarray(suppressed, dtype=bool)
+        #: Control sgRNA names that never appeared in the ranked list, in the
+        #: order the C++ reports them. They contribute nothing to the null,
+        #: so this changes no number -- but a user who mistypes a name, or
+        #: whose control guides were filtered out upstream, is told. The C++
+        #: warns here (``RRA.cpp:460``) and callers surface it; dropping the
+        #: list silently would make the Python backend quieter than the
+        #: helper it replaces about something worth knowing.
+        self.missing_control = list(missing_control)
 
     def __len__(self):
         return len(self.names)
@@ -442,10 +450,11 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
         percentile_by_sgrna[name] = pct[i]
 
     control_values = None
+    missing_control = []
     control_set = set()
     if control is not None:
         control_set = {name_as_stored(str(c)) for c in control if str(c).strip()}
-        control_values, _missing = _control_percentile_array(
+        control_values, missing_control = _control_percentile_array(
             control_set, percentile_by_sgrna)
         if control_values.size == 0:
             # The C++ computes rand_ctl_index = -1 here and reads
@@ -546,7 +555,7 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
         fdr[keep] = _benjamini_hochberg(p[keep])
 
     return RRAResult(gene_names, counts, lo_value, p, fdr, goodsgrna,
-                     excluded, suppressed)
+                     excluded, suppressed, missing_control=missing_control)
 
 
 def _null_lo_values(rng, rows, k, alpha, control_values,

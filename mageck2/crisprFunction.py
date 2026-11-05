@@ -606,6 +606,13 @@ def rank_association_test_python(file,outfile,cutoff,args):
   except ValueError as e:
     logging.error('RRA (Python implementation) failed: '+str(e))
     sys.exit(-1)
+  # The compiled helper writes one of these to stderr per missing control
+  # sgRNA (RRA.cpp:460) and the caller logs it as a command message. Keep the
+  # diagnostic when the Python backend is in use: it changes no p value, but
+  # it is how a user learns that control sgRNAs they asked for are not in the
+  # ranked list -- a mistyped name, or guides filtered out upstream.
+  for name in result.missing_control:
+    logging.warning('sgRNA '+name+' not found in the ranked list.')
   with open(outfile,'w') as fh:
     fh.write(result.to_text())
 
