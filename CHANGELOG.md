@@ -280,6 +280,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `mageck2.rra` now implements RRA's `-P` (minimum percentile), so every option
+  the helper documents is reachable through `--additional-rra-parameters` on
+  either backend. The option's help promises the value is appended to RRA's
+  command line, which the compiled helper honours by construction; the port
+  honoured it only for the options it had implemented, and
+  `--additional-rra-parameters "-P 0.01"` failed outright with
+  `unsupported RRA flag: '-P'`.
+
+  The lower bound reaches the permutation null as well as the observed
+  lo-values, because the C++ passes `minPercentile` into `ComputePermutation`
+  and `ComputePermutationbyNumSG` as well as into `ProcessGroups`
+  (`RRA.cpp:306-308`). Bounding only the observed side reproduces the lo-value
+  column exactly while moving 25 genes' FDR outside tolerance, which is what
+  the new `min_percentile` parity case catches.
+
+  Nothing about the default output changes: `-P` defaults to -1.0 and
+  percentiles lie in [0, 1], so the bound excludes nothing unless it is asked
+  for. That is also why the gap went unnoticed — no recorded golden and no
+  archived real-screen run passed the option, and parity against goldens
+  cannot discover an option that none of the goldens use. There is now a test
+  that reads RRA's own usage text and fails if the C++ documents an option the
+  port refuses, so the next one shows up as a test failure rather than as a
+  user's broken run.
+
 - The RRA helper is no longer invoked through a shell, so a path containing
   characters the shell reads as syntax works. `--control-sgrna
   "~/Dropbox (Personal)/guides.txt"` previously failed with

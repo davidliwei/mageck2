@@ -136,6 +136,50 @@
       "uses_control": false,
       "why": "--min-number-goodsgrna excludes genes from FDR adjustment (adjustFDR, RRA.cpp:646), which makes them print FDR as the string NA. The port has to reproduce which rows are NA, not just the numbers in the rows that are not."
     },
+    "min_percentile": {
+      "alpha": 0.25,
+      "flags": [
+        "-P",
+        "0.01"
+      ],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 300,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0010",
+        "GENE0038",
+        "GENE0078",
+        "GENE0125",
+        "GENE0191",
+        "GENE0205"
+      ],
+      "uses_control": false,
+      "why": "-P, the lower percentile bound. Nothing in the corpus passed it before, because its default of -1.0 cannot exclude anything: the port's lower bound was therefore unreachable, and every golden recorded so far is consistent with it being wrong. -P 0.01 excludes the strongest sgRNAs -- except at index 0, which ComputeLoValue scores whether or not it is in range (RRA.cpp:500-502), so a gene can end up with a lo-value below 1 and no good sgRNAs at all."
+    },
+    "min_percentile_control": {
+      "alpha": 0.25,
+      "flags": [
+        "-P",
+        "0.08"
+      ],
+      "min_p": 4.9751e-06,
+      "mode": "parity",
+      "n_na_fdr": 0,
+      "n_rows": 256,
+      "ngenes": 300,
+      "planted_hits": [
+        "GENE0037",
+        "GENE0195",
+        "GENE0211",
+        "GENE0228",
+        "GENE0246",
+        "GENE0282"
+      ],
+      "uses_control": true,
+      "why": "-P with --control, so the bound applies to a null resampled from control-sgRNA percentiles rather than a uniform one. The C++ passes minPercentile into ComputePermutationbyNumSG as well as into ProcessGroups (RRA.cpp:306-308), so the bound has to reach the null too.\n\nThe bound is 0.08 rather than 0.01 because it was chosen from the data instead of by eye. This case's smallest control percentile is 0.0215, so -P 0.01 excludes nothing a resampled null can draw: the case passed whether or not the null was bounded, which makes it no test of the thing it is named for. 0.08 excludes 14 of the 206 control percentiles, so an unbounded null now shows up as wrong p values."
+    },
     "pathway_duplicate_membership": {
       "alpha": 0.25,
       "flags": [],
@@ -295,18 +339,18 @@
   },
   "oracle": {
     "fingerprint": "RRA sha256:4167572a1a1190309e6fbd8b2417d624630e13e3700ef8273bbbc707012a4111",
-    "git_commit": "955e2bb9503cf901d713f99ba3d051dcef8d4e01",
-    "git_describe": "v0.3.0-11-g955e2bb-dirty",
+    "git_commit": "22873426c5e042949780a5fa9db6f0bb729f8eb1",
+    "git_describe": "v0.3.0-17-g2287342-dirty",
     "implementation": "compiled RRA C++ helper",
     "oracle_source_dirty": false,
     "tree_dirty": true
   },
   "platform": {
     "machine": "arm64",
-    "python": "3.9.6",
+    "python": "3.13.5",
     "system": "Darwin"
   },
-  "recorded_at": "2026-11-05T04:25:25Z",
+  "recorded_at": "2026-11-06T01:54:14Z",
   "recorded_by": "tests/parity/record.py",
   "tolerances": {
     "atol_fdr": 5e-06,
