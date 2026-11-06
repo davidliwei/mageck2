@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-05
+
+`mageck2 pathway --method gsea` reports different numbers in this release, and
+that is the headline. `mageckGSEA` had five input-handling bugs, each of which
+produced plausible output and reported nothing. The two that matter: gene-set
+sizes were overstated for essentially every real GMT file, because lines were
+split on whitespace although GMT is tab-delimited with a free-text description
+in the second column -- so description words joined the gene set, and a word
+matching a gene symbol was *scored* -- and a blank line anywhere in a GMT file
+suppressed every real set in the file while exiting 0, having written an output
+file that looks like a result. Separately, the permutation test was seeded from
+the clock, so `p_permutation`, `FDR` and `Ranking` were not reproducible
+between runs and will not match what earlier versions reported. `ES` and the
+analytic `p` are unaffected by that last one. See **Fixed**.
+
+One class of run that used to abort now completes: RRA was invoked through a
+shell, so a `--control-sgrna` path containing characters the shell reads as
+syntax -- a directory named `Dropbox (Personal)`, say -- killed the run before
+RRA started.
+
+Python implementations of both compiled helpers ship in this release, and
+neither is the default. `MAGECK2_RRA_IMPL=python` and
+`MAGECK2_GSEA_IMPL=python` select them. Both reproduce their helper's output,
+checked on every push against goldens recorded from the C++, and the RRA port
+is additionally validated against archived MAGeCK runs on two published
+screens. They are internal migration controls rather than user-facing options,
+and the defaults are deliberately unchanged here: a release in which the ports
+exist and are reachable has to come before one in which they are what runs.
+
+The bundled helpers also gain `RRA --max-permutation-per-group` and
+`mageckGSEA --seed`, both reachable from `mageck2 test` through
+`--additional-rra-parameters`.
+
 ### Added
 
 - `mageck2.gsea`: a Python implementation of `mageckGSEA`, with an array-based
@@ -705,7 +738,8 @@ Initial public source release, built on
   control, RRA and MLE essentiality testing with copy-number correction, and
   functional enrichment.
 
-[Unreleased]: https://github.com/davidliwei/mageck2/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/davidliwei/mageck2/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/davidliwei/mageck2/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/davidliwei/mageck2/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/davidliwei/mageck2/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/davidliwei/mageck2/releases/tag/v0.1.0
