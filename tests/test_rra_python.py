@@ -511,3 +511,40 @@ def test_both_backends_agree_on_a_passed_through_minimum_percentile(tmp_path):
     assert run("python", []) != bounded["python"], (
         "-P 0.1 changed nothing, so this table cannot tell whether the bound "
         "is applied at all")
+
+
+def test_adding_an_option_did_not_disturb_the_positional_signature():
+    """``rank`` is a published array API, so argument positions are contract.
+
+    ``min_percentile`` belongs next to ``alpha`` -- they are the helper's
+    ``-p`` and ``-P`` -- and was first added there, which silently rebinds
+    every positional argument after it: ``rank(items, groups, values, lists,
+    alpha, control)`` passed the control list in as a percentile bound. It is
+    keyword-only and last instead, so this test pins both halves of that: the
+    old positions still mean what they meant, and the new option has no
+    position to be confused with.
+    """
+    import inspect
+
+    items, genes, values = [], [], []
+    for g in range(12):
+        for s in range(5):
+            items.append("sg_%d_%d" % (g, s))
+            genes.append("GENE%02d" % g)
+            values.append(0.002 * (g * 5 + s))
+    controls = [n for n in items if n.startswith(("sg_10_", "sg_11_"))]
+
+    positional = rra.rank(items, genes, values, None, 0.25, controls)
+    keyword = rra.rank(items, genes, values, lists=None, alpha=0.25,
+                       control=controls)
+    assert positional.to_text() == keyword.to_text()
+
+    parameters = inspect.signature(rra.rank).parameters
+    assert parameters["min_percentile"].kind is inspect.Parameter.KEYWORD_ONLY
+    # The positional run above would still pass if `control` had moved, as
+    # long as both calls agreed. Pin the order itself.
+    positional_names = [
+        name for name, p in parameters.items()
+        if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD]
+    assert positional_names[:6] == [
+        "items", "groups", "values", "lists", "alpha", "control"]

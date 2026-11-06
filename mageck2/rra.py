@@ -373,13 +373,19 @@ def _control_percentile_array(control_names, percentile_by_sgrna):
     return np.asarray(values, dtype=np.float64), missing
 
 
-def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA,
-         min_percentile=DEFAULT_MIN_PERCENTILE, control=None,
+def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
          permutation=DEFAULT_PERMUTATION, permutation_specified=False,
          by_group=True, skip_genes=(), min_number_goodsgrna=0,
          min_percentage_goodsgrna=0.0,
          max_sgrna_per_gene_permutation=DEFAULT_MAX_SGRNA_PER_GENE_PERMUTATION,
-         max_permutation_per_group=0, seed=DEFAULT_SEED):
+         max_permutation_per_group=0, seed=DEFAULT_SEED,
+         # Last and keyword-only, although it belongs next to ``alpha``: the
+         # two are the helper's -p and -P. Putting it there rebinds every
+         # positional argument after it, so ``rank(items, groups, values,
+         # lists, alpha, control)`` would pass a control list in as a
+         # percentile bound. Keyword-only also means the next option added
+         # here cannot repeat that.
+         *, min_percentile=DEFAULT_MIN_PERCENTILE):
     """Rank groups by robust rank aggregation.
 
     ``items`` are sgRNA names, ``groups`` the gene each belongs to, ``values``
