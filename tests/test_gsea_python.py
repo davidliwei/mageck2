@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from mageck2 import gsea, pathwayFunc
+from mageck2 import crisprFunction, gsea, pathwayFunc
 
 DATA = Path(__file__).parent / "data" / "count_table.txt"
 GMT = Path(__file__).parent / "data" / "pathways.gmt"
@@ -29,9 +29,42 @@ GMT = Path(__file__).parent / "data" / "pathways.gmt"
 # The switch
 # --------------------------------------------------------------------------
 
-def test_the_compiled_helper_is_still_the_default(monkeypatch):
+def test_the_python_implementation_is_the_default(monkeypatch):
+    """The port is now what runs unless the environment says otherwise.
+
+    Worth being explicit about what this protects: if the default silently
+    reverted to the compiled helper, every parity test would still pass --
+    against the old implementation -- and nothing else in the suite would
+    notice.
+    """
     monkeypatch.delenv(pathwayFunc.GSEA_IMPL_ENV, raising=False)
+    assert pathwayFunc.gsea_implementation() == "python"
+
+
+@pytest.mark.parametrize("value", ["cpp", "CPP", " cpp "])
+def test_the_compiled_helper_remains_reachable(monkeypatch, value):
+    """The fallback has to keep working while the C++ is still in the tree.
+
+    It is what makes flipping the default reversible without a release.
+    """
+    monkeypatch.setenv(pathwayFunc.GSEA_IMPL_ENV, value)
     assert pathwayFunc.gsea_implementation() == "cpp"
+
+
+def test_both_defaults_moved_together(monkeypatch):
+    """RRA and GSEA default to the same side.
+
+    Phase 2 moves both helpers, and the two flips shipping in one release is
+    deliberate: a release that moved one and not the other would change a
+    user's results twice, for reasons unrelated to their data. This fails if a
+    later change reverts one default and leaves the other, which is the way
+    they would realistically drift apart.
+    """
+    monkeypatch.delenv(pathwayFunc.GSEA_IMPL_ENV, raising=False)
+    monkeypatch.delenv(crisprFunction.RRA_IMPL_ENV, raising=False)
+    assert (pathwayFunc.gsea_implementation()
+            == crisprFunction.rra_implementation()
+            == "python")
 
 
 @pytest.mark.parametrize("value", ["python", "Python", " PYTHON "])

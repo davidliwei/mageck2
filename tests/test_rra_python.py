@@ -28,9 +28,25 @@ from mageck2 import crisprFunction, rra
 # The migration switch
 # --------------------------------------------------------------------------
 
-def test_the_compiled_helper_is_still_the_default(monkeypatch):
-    """Phase 1 ships the port alongside the C++, not in place of it."""
+def test_the_python_implementation_is_the_default(monkeypatch):
+    """The port is now what runs unless the environment says otherwise.
+
+    This assertion is the switch's whole point, so it is worth being explicit
+    about what it protects: if the default silently reverted to the compiled
+    helper, every parity test would still pass -- against the old
+    implementation -- and nothing else in the suite would notice.
+    """
     monkeypatch.delenv(crisprFunction.RRA_IMPL_ENV, raising=False)
+    assert crisprFunction.rra_implementation() == "python"
+
+
+@pytest.mark.parametrize("value", ["cpp", "CPP", " cpp "])
+def test_the_compiled_helper_remains_reachable(monkeypatch, value):
+    """The fallback has to keep working while the C++ is still in the tree.
+
+    It is what makes flipping the default reversible without a release.
+    """
+    monkeypatch.setenv(crisprFunction.RRA_IMPL_ENV, value)
     assert crisprFunction.rra_implementation() == "cpp"
 
 

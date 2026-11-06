@@ -312,13 +312,38 @@ def mageck_pathwaygsa_fast(args):
     mageck_removetmprra(args)
 
 #: Which GSEA implementation to use: "cpp" for the compiled mageckGSEA helper
-#: or "python" for mageck2.gsea. The helper stays the default until the port
-#: has been checked against real screens, which is how the RRA port was
-#: introduced too. Read from the environment rather than added to the command
-#: line deliberately: offering the choice to users would invite them to make
-#: it, and there is no basis on which they could.
+#: or "python" for mageck2.gsea. Read from the environment rather than added
+#: to the command line deliberately: offering the choice to users would invite
+#: them to make it, and there is no basis on which they could.
+#:
+#: The default is now the Python implementation, moved in the same release as
+#: the RRA default and for the same reason -- Phase 2 applies to both helpers,
+#: and shipping the two flips separately would mean two releases in which a
+#: user's results could change for reasons that have nothing to do with their
+#: data.
+#:
+#: What "agrees with the helper" means here is checked on every push by
+#: tests/test_gsea_parity.py against goldens recorded from the C++, and it is
+#: worth being precise because it is not the same statement as for RRA.
+#: ``p``, ``FDR`` and ``p_permutation`` are required to agree *exactly*:
+#: p_permutation is a count of exceedances over a seeded generator whose
+#: consumption order is fully determined, so two correct implementations have
+#: no reason to differ by even one permutation. ``ES`` carries a 1e-15
+#: absolute tolerance, and that tolerance is not there to excuse the port: the
+#: helper's accumulator is contracted into a fused multiply-add by clang at
+#: -O3 where FMA is in the baseline instruction set, so the C++ does not agree
+#: with *itself* across architectures to the last bit. The tolerance is eight
+#: orders of magnitude below the float32 resolution of any non-zero ES.
+#:
+#: Setting MAGECK2_GSEA_IMPL=cpp restores the old path for as long as the
+#: helper remains in the tree, which is what makes this reversible without a
+#: release.
 GSEA_IMPL_ENV = "MAGECK2_GSEA_IMPL"
-DEFAULT_GSEA_IMPL = "cpp"
+
+#: Falling back to the compiled helper stays possible until the C++ trees are
+#: removed, at which point this constant and the branch in run_gsea go with
+#: them.
+DEFAULT_GSEA_IMPL = "python"
 
 
 def gsea_implementation():
@@ -342,7 +367,7 @@ def run_gsea(args,columnid,outputfile,what):
   replace the implementation first, remove the file round-trip afterwards.
   """
   if gsea_implementation()=='python':
-    logging.info('Using the Python GSEA implementation ('+GSEA_IMPL_ENV+'=python).')
+    logging.info('Using the Python GSEA implementation.')
     from mageck2 import gsea
     try:
       result=gsea.enrich_from_file(args.gmt_file,args.gene_ranking,
@@ -356,6 +381,7 @@ def run_gsea(args,columnid,outputfile,what):
     with open(outputfile,'w') as fh:
       fh.write(result.to_text())
     return
+  logging.info('Using the compiled mageckGSEA helper ('+GSEA_IMPL_ENV+'=cpp).')
   gseacommand="mageckGSEA "
   gseacommand+=" -s "
   gseacommand+=" -H "  # gene_ranking is a gene_summary file with a header row
