@@ -61,6 +61,11 @@ MAX_NAME_LEN = 512
 DEFAULT_ALPHA = 0.25
 DEFAULT_PERMUTATION = 100
 DEFAULT_MAX_SGRNA_PER_GENE_PERMUTATION = 100
+#: Lower bound on the percentiles that enter a gene's lo-value -- the
+#: helper's ``-P``. The default is inert: percentiles lie in [0, 1], so a
+#: bound of -1.0 excludes nothing, which is why the option can be absent
+#: from every recorded golden without any of them being wrong.
+DEFAULT_MIN_PERCENTILE = -1.0
 
 #: Below this many total permutations the helper silently raises the count
 #: (``RRA.cpp:281``) unless ``--permutation`` was given explicitly.
@@ -213,7 +218,7 @@ def percentiles(sorted_values, values):
     return (low + high + 1.0) / (n * 2.0)
 
 
-def _lo_values(matrix, alpha, min_percentile=-1.0):
+def _lo_values(matrix, alpha, min_percentile=DEFAULT_MIN_PERCENTILE):
     """Lo-values and good-sgRNA counts for each row of percentiles.
 
     ``ComputeLoValue`` (``RRA.cpp:470``) walks a gene's percentiles in
@@ -373,13 +378,29 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
          by_group=True, skip_genes=(), min_number_goodsgrna=0,
          min_percentage_goodsgrna=0.0,
          max_sgrna_per_gene_permutation=DEFAULT_MAX_SGRNA_PER_GENE_PERMUTATION,
-         max_permutation_per_group=0, seed=DEFAULT_SEED):
+         max_permutation_per_group=0, seed=DEFAULT_SEED,
+         # Last and keyword-only, although it belongs next to ``alpha``: the
+         # two are the helper's -p and -P. Putting it there rebinds every
+         # positional argument after it, so ``rank(items, groups, values,
+         # lists, alpha, control)`` would pass a control list in as a
+         # percentile bound. Keyword-only also means the next option added
+         # here cannot repeat that.
+         *, min_percentile=DEFAULT_MIN_PERCENTILE):
     """Rank groups by robust rank aggregation.
 
     ``items`` are sgRNA names, ``groups`` the gene each belongs to, ``values``
     the statistic to rank on (smaller ranks first), and ``lists`` the pool each
     sgRNA was measured in -- percentiles are computed within a pool. All four
     are parallel sequences.
+
+    ``alpha`` and ``min_percentile`` are the helper's ``-p`` and ``-P``: a
+    gene's lo-value is computed over the prefix of its percentiles that lies
+    within ``[min_percentile, alpha]``. The lower bound applies to the
+    permutation null as well as to the observed lo-values, because the C++
+    passes ``minPercentile`` into ``ComputePermutation`` and
+    ``ComputePermutationbyNumSG`` too (``RRA.cpp:306-308``). Bounding only the
+    observed side would test real genes against a null built under a
+    different rule.
 
     Returns an :class:`RRAResult`.
     """
@@ -396,6 +417,14 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
         raise ValueError("items, groups, values and lists must be parallel")
     if len(items) == 0:
         raise ValueError("no sgRNAs to rank")
+    if min_percentile > 1.0:
+        # The helper refuses this rather than running (RRA.cpp:246). Every
+        # percentile is at most 1, so a bound above 1 excludes all of them and
+        # would report a lo-value of 1.0 for every gene -- an answer that looks
+        # like a result and is not one.
+        raise ValueError(
+            "minimum percentile (-P) must be at most 1.0; got %r"
+            % (min_percentile,))
 
     # Percentiles are assigned within each pool, against that pool's sorted
     # values -- not globally.
@@ -477,7 +506,7 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
     for k in np.unique(counts):
         gi = np.flatnonzero(counts == k)
         block = np.stack([pct[members[g]] for g in gi])
-        lo, good = _lo_values(block, alpha)
+        lo, good = _lo_values(block, alpha, min_percentile)
         lo_value[gi] = lo
         goodsgrna[gi] = good
         if k <= 1:
@@ -506,7 +535,8 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
         for k in strata:
             if k <= max_sgrna_per_gene_permutation:
                 null = np.sort(_null_lo_values(
-                    rng, scan_pass * ngenes, k, alpha, control_values))
+                    rng, scan_pass * ngenes, k, alpha, control_values,
+                    min_percentile=min_percentile))
             if null is None:
                 continue
             target = (counts == k) & ~skipped
@@ -534,7 +564,7 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
                     [draws[:, offsets[g]:offsets[g] + k] for g in gi], axis=0)
                 if control_values is not None:
                     block = _resample_control(block, control_values)
-                lo, _ = _lo_values(block, alpha)
+                lo, _ = _lo_values(block, alpha, min_percentile)
                 # block stacks each gene's npass rows in turn, so reshaping to
                 # (gene, pass) recovers which lo-value belongs where.
                 where = (first + np.arange(npass))[None, :] * ngenes + gi[:, None]
@@ -559,6 +589,7 @@ def rank(items, groups, values, lists=None, alpha=DEFAULT_ALPHA, control=None,
 
 
 def _null_lo_values(rng, rows, k, alpha, control_values,
+                    min_percentile=DEFAULT_MIN_PERCENTILE,
                     chunk=NULL_CHUNK_ELEMENTS):
     """Lo-values for ``rows`` permuted genes of ``k`` sgRNAs each.
 
@@ -576,7 +607,7 @@ def _null_lo_values(rng, rows, k, alpha, control_values,
         block = rng.uniform(take * k).reshape(take, k)
         if control_values is not None:
             block = _resample_control(block, control_values)
-        out[done:done + take] = _lo_values(block, alpha)[0]
+        out[done:done + take] = _lo_values(block, alpha, min_percentile)[0]
         done += take
     return out
 
@@ -606,6 +637,7 @@ def _p_from_null(null, lo_values):
 #: the keyword it sets. Kept as data so the set of supported options is
 #: visible in one place rather than spread through a parser.
 _VALUE_FLAGS = {
+    "-P": ("min_percentile", float),
     "--permutation": ("permutation", int),
     "--min-number-goodsgrna": ("min_number_goodsgrna", int),
     "--min-percentage-goodsgrna": ("min_percentage_goodsgrna", float),

@@ -12,6 +12,7 @@ run.
 """
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -346,3 +347,204 @@ def test_a_control_sgrna_absent_from_the_ranked_list_is_reported():
         assert named.missing_control == []
     finally:
         os.unlink(path)
+
+
+# --------------------------------------------------------------------------
+# Pass-through options
+# --------------------------------------------------------------------------
+
+#: Options RRA documents that mageck2 supplies itself, as function arguments
+#: rather than as flags: ``-i``/``-o`` are the file round trip,
+#: ``-p`` is ``alpha`` and ``--control`` is ``control``. A user who repeats one
+#: of these through ``--additional-rra-parameters`` is overriding something
+#: mageck2 has already decided, which the port declines to honour rather than
+#: silently applying second.
+SUPPLIED_BY_MAGECK2 = {"-i", "-o", "-p", "--control"}
+
+RRA_SOURCE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "rra", "src", "RRA.cpp")
+
+
+def _documented_rra_options():
+    """The options RRA's own usage text advertises."""
+    with open(RRA_SOURCE) as handle:
+        source = handle.read()
+    # The definition, not the forward declaration at RRA.cpp:88 -- that one is
+    # followed by other functions whose bodies advertise nothing.
+    m = re.search(r"void PrintCommandUsage\([^)]*\)\s*\n\{", source)
+    assert m is not None, "cannot find PrintCommandUsage's definition"
+    body = source[m.end():source.index("\n}", m.end())]
+    found = set()
+    for line in body.splitlines():
+        m = re.search(r'printf\("(-[-A-Za-z][-A-Za-z0-9]*)', line)
+        if m:
+            found.add(m.group(1))
+    return found
+
+
+def test_every_documented_rra_option_is_either_understood_or_supplied():
+    """``--additional-rra-parameters`` promises pass-through; keep the promise.
+
+    The option's help says the value is "appended to the command line for
+    calling RRA", so anything RRA documents is reachable through it. Under the
+    compiled helper that is automatically true. Under the port it is true only
+    for options the port implements, and an unimplemented one is a hard error.
+
+    This is how ``-P`` was missed. Its default of -1.0 cannot exclude
+    anything, so no recorded golden and no real screen's parameters ever
+    carried it, and parity against goldens cannot find an option that none of
+    the goldens use. A user passing ``-P 0.01`` got a working run before the
+    default moved to the port and ``unsupported RRA flag: '-P'`` after.
+
+    Asserting against the helper's own usage text rather than against a list
+    kept here is the point: a future option added to the C++ shows up in this
+    test rather than in a bug report.
+    """
+    if not os.path.exists(RRA_SOURCE):
+        pytest.skip("the C++ source is gone, so there is no usage text to read")
+
+    documented = _documented_rra_options()
+    # Guard the guard: if the scrape silently matched nothing, the assertion
+    # below would pass by vacuity.
+    assert "-P" in documented and "--permutation" in documented, (
+        "the usage-text scrape is not finding options any more: %r" % (
+            sorted(documented),))
+
+    understood = set(rra._VALUE_FLAGS) | {
+        "--skip-gene", "--no-permutation-by-group"}
+    unreachable = documented - understood - SUPPLIED_BY_MAGECK2
+    assert not unreachable, (
+        "RRA documents %s, which --additional-rra-parameters can carry and "
+        "mageck2.rra refuses" % (sorted(unreachable),))
+
+
+def test_the_minimum_percentile_flag_is_parsed_and_applied():
+    """``-P`` reaches the computation rather than being accepted and dropped.
+
+    An option that parses and then does nothing is worse than one that is
+    refused: the run succeeds and the numbers are the unbounded ones.
+    """
+    assert rra._parse_flags(["-P", "0.08"]) == {"min_percentile": 0.08}
+
+    items, genes, values = [], [], []
+    for g in range(40):
+        for s in range(5):
+            items.append("sg_%d_%d" % (g, s))
+            genes.append("GENE%02d" % g)
+            values.append(0.001 * (g * 5 + s))
+
+    loose = rra.rank(items, genes, values)
+    bound = rra.rank(items, genes, values, min_percentile=0.1)
+    assert not np.allclose(loose.lo_value, bound.lo_value), (
+        "min_percentile did not change any lo-value, so it is being ignored")
+
+    # The helper's default is inert by construction: percentiles lie in [0, 1]
+    # and the bound is -1.0, so passing it explicitly must change nothing.
+    explicit = rra.rank(items, genes, values,
+                        min_percentile=rra.DEFAULT_MIN_PERCENTILE)
+    assert explicit.to_text() == loose.to_text()
+
+
+def test_a_minimum_percentile_above_one_is_refused():
+    """Mirrors the helper's own refusal (``RRA.cpp:246``).
+
+    Every percentile is at most 1, so a bound above 1 excludes all of them and
+    would report a lo-value of 1.0 for every gene -- a result-shaped answer
+    that means nothing. The C++ exits rather than print it.
+    """
+    items = ["sg_0", "sg_1", "sg_2"]
+    genes = ["GENE0", "GENE0", "GENE0"]
+    values = [0.1, 0.2, 0.3]
+    with pytest.raises(ValueError) as excinfo:
+        rra.rank(items, genes, values, min_percentile=1.5)
+    assert "-P" in str(excinfo.value)
+
+
+def test_both_backends_agree_on_a_passed_through_minimum_percentile(tmp_path):
+    """The regression this option was added for, end to end through the CLI.
+
+    ``mageck2 test --additional-rra-parameters "-P 0.1"`` completed on the
+    compiled helper and failed on the port. Both must now run, and agree.
+    """
+    if shutil.which("RRA") is None or shutil.which("mageck2") is None:
+        pytest.skip("needs an installed mageck2 and the compiled helper")
+
+    # Each gene is given a distinct effect size. A table of repeated effects
+    # makes most genes tie on score, and RRA sorts ties with an unstable
+    # quicksort, so the two backends legitimately emit tied rows -- and their
+    # rank column -- in different orders. Comparing bytes would then fail for
+    # a reason that has nothing to do with -P.
+    counts = tmp_path / "counts.txt"
+    rows = ["sgRNA\tGene\tctl\ttrt"]
+    for g in range(12):
+        for s in range(5):
+            ctl = 200 + 11 * s + 3 * g
+            trt = max(5, int(ctl * (0.12 + 0.072 * g)) + s)
+            rows.append("sg_%d_%d\tGENE%02d\t%d\t%d" % (g, s, g, ctl, trt))
+    counts.write_text("\n".join(rows) + "\n")
+
+    def run(impl, extra):
+        workdir = tmp_path / (impl + ("_bounded" if extra else "_plain"))
+        workdir.mkdir()
+        env = dict(os.environ, MAGECK2_RRA_IMPL=impl)
+        proc = subprocess.run(
+            ["mageck2", "test", "-k", str(counts), "-n", "out",
+             "-t", "trt", "-c", "ctl"] + extra,
+            cwd=str(workdir), env=env, capture_output=True, text=True)
+        combined = proc.stdout + proc.stderr
+        assert "unsupported RRA flag" not in combined, (
+            "%s backend refuses an option RRA documents:\n%s"
+            % (impl, combined))
+        assert proc.returncode == 0, (
+            "%s backend exited %d:\n%s" % (impl, proc.returncode, combined))
+        summary = workdir / "out.gene_summary.txt"
+        assert summary.exists(), "%s backend wrote no gene summary" % impl
+        return summary.read_text()
+
+    bounded = {impl: run(impl, ["--additional-rra-parameters", "-P 0.1"])
+               for impl in ("cpp", "python")}
+    assert bounded["cpp"] == bounded["python"]
+
+    # Without this the test would pass just as well if -P were parsed and then
+    # discarded, which is the failure mode worth guarding against.
+    assert run("python", []) != bounded["python"], (
+        "-P 0.1 changed nothing, so this table cannot tell whether the bound "
+        "is applied at all")
+
+
+def test_adding_an_option_did_not_disturb_the_positional_signature():
+    """``rank`` is a published array API, so argument positions are contract.
+
+    ``min_percentile`` belongs next to ``alpha`` -- they are the helper's
+    ``-p`` and ``-P`` -- and was first added there, which silently rebinds
+    every positional argument after it: ``rank(items, groups, values, lists,
+    alpha, control)`` passed the control list in as a percentile bound. It is
+    keyword-only and last instead, so this test pins both halves of that: the
+    old positions still mean what they meant, and the new option has no
+    position to be confused with.
+    """
+    import inspect
+
+    items, genes, values = [], [], []
+    for g in range(12):
+        for s in range(5):
+            items.append("sg_%d_%d" % (g, s))
+            genes.append("GENE%02d" % g)
+            values.append(0.002 * (g * 5 + s))
+    controls = [n for n in items if n.startswith(("sg_10_", "sg_11_"))]
+
+    positional = rra.rank(items, genes, values, None, 0.25, controls)
+    keyword = rra.rank(items, genes, values, lists=None, alpha=0.25,
+                       control=controls)
+    assert positional.to_text() == keyword.to_text()
+
+    parameters = inspect.signature(rra.rank).parameters
+    assert parameters["min_percentile"].kind is inspect.Parameter.KEYWORD_ONLY
+    # The positional run above would still pass if `control` had moved, as
+    # long as both calls agreed. Pin the order itself.
+    positional_names = [
+        name for name, p in parameters.items()
+        if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD]
+    assert positional_names[:6] == [
+        "items", "groups", "values", "lists", "alpha", "control"]
