@@ -316,6 +316,43 @@ CASES = (
         seed=23,
     ),
     Case(
+        name="min_percentile",
+        why="-P, the lower percentile bound. Nothing in the corpus passed it "
+            "before, because its default of -1.0 cannot exclude anything: the "
+            "port's lower bound was therefore unreachable, and every golden "
+            "recorded so far is consistent with it being wrong. -P 0.01 "
+            "excludes the strongest sgRNAs -- except at index 0, which "
+            "ComputeLoValue scores whether or not it is in range "
+            "(RRA.cpp:500-502), so a gene can end up with a lo-value below 1 "
+            "and no good sgRNAs at all. This is the case that fails if the "
+            "bound is applied to the observed lo-values but not to the "
+            "permutation null: 25 genes move outside the FDR tolerance.",
+        mode=Mode.PARITY,
+        flags=("-P", "0.01"),
+        sgrnas_per_gene=HETEROGENEOUS_MIX,
+        seed=23,
+    ),
+    Case(
+        name="min_percentile_control",
+        why="-P with --control, so the bound applies to a null resampled from "
+            "control-sgRNA percentiles rather than a uniform one. The C++ "
+            "passes minPercentile into ComputePermutationbyNumSG as well as "
+            "into ProcessGroups (RRA.cpp:306-308), so the bound has to reach "
+            "the null too.\n\n"
+            "The bound is 0.08 rather than 0.01 because it was chosen from "
+            "the data instead of by eye. This case's smallest control "
+            "percentile is 0.0215, so -P 0.01 excludes nothing a resampled "
+            "null can draw: the case passed whether or not the null was "
+            "bounded, which makes it no test of the thing it is named for. "
+            "0.08 excludes 14 of the 206 control percentiles, so an unbounded "
+            "null now shows up as wrong p values.",
+        mode=Mode.PARITY,
+        flags=("-P", "0.08"),
+        sgrnas_per_gene=HETEROGENEOUS_MIX,
+        control_fraction=0.15,
+        seed=41,
+    ),
+    Case(
         name="pathway_memberships",
         why="The group column as the shipped pathway mode writes it: one row "
             "per gene, the field a comma-separated list of every pathway "
