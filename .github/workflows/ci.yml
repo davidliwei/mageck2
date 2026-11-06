@@ -36,22 +36,31 @@ jobs:
       - name: Run smoke tests
         run: pytest -v
 
-  rra-parity:
-    # The suite is run against both RRA implementations, not just the default
-    # one. The Python implementation is now the default, so the job above
-    # already covers it; this job covers the compiled helper, and runs the
-    # Python path again explicitly so that a change to the default cannot
-    # quietly reduce what is tested to a single implementation.
+  parity:
+    # The suite is run against both implementations of both helpers, not just
+    # whichever pair is currently the default. Both defaults are now the
+    # Python ports, so the job above already covers that side; this job covers
+    # the compiled helpers, and runs the Python side again explicitly so that
+    # a change to either default cannot quietly reduce what is tested to a
+    # single implementation.
+    #
+    # The two switches move together rather than as a 2x2 matrix. What they
+    # select is the integration path -- which implementation `mageck2 test`
+    # and `mageck2 pathway` actually call -- and that path is independent for
+    # the two helpers, so the cross combinations add runner time without
+    # adding coverage. Agreement between each helper and its port is checked
+    # by tests/test_rra_parity.py and tests/test_gsea_parity.py, which drive
+    # both backends directly and so run in either configuration.
     #
     # One Python version is enough: what is under test is agreement between
     # two implementations of the same statistic, which does not vary by
     # interpreter version, and the matrix above already covers the versions.
-    name: RRA parity (MAGECK2_RRA_IMPL=${{ matrix.rra-impl }})
+    name: Parity (MAGECK2_*_IMPL=${{ matrix.impl }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        rra-impl: [python, cpp]
+        impl: [python, cpp]
 
     steps:
       - uses: actions/checkout@v7
@@ -61,10 +70,11 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install mageck2 (compiles the RRA helper)
+      - name: Install mageck2 (compiles both helpers)
         run: python -m pip install --upgrade pip && pip install .[test]
 
-      - name: Run the suite against MAGECK2_RRA_IMPL=${{ matrix.rra-impl }}
+      - name: Run the suite against MAGECK2_*_IMPL=${{ matrix.impl }}
         env:
-          MAGECK2_RRA_IMPL: ${{ matrix.rra-impl }}
+          MAGECK2_RRA_IMPL: ${{ matrix.impl }}
+          MAGECK2_GSEA_IMPL: ${{ matrix.impl }}
         run: pytest -v

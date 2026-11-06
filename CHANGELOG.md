@@ -9,30 +9,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The Python RRA implementation is now what runs by default.** 0.4.0 shipped
-  it reachable but not selected; this is the release in which it is what a
-  plain `mageck2 test` uses. The compiled helper remains in the tree and is
-  still installed, and `MAGECK2_RRA_IMPL=cpp` restores it, which is what makes
-  the change reversible without a release. That switch stays an internal
-  migration control rather than a user-facing option.
+- **Both Python implementations are now what run by default.** 0.4.0 shipped
+  them reachable but not selected; this is the release in which a plain
+  `mageck2 test` and `mageck2 pathway --method gsea` use them. The compiled
+  helpers remain in the tree and are still installed, and
+  `MAGECK2_RRA_IMPL=cpp` / `MAGECK2_GSEA_IMPL=cpp` restore them, which is what
+  makes the change reversible without a release. Those switches stay internal
+  migration controls rather than user-facing options.
 
-  Nothing about the results changes, which is the reason the default could move
-  at all rather than users having to re-validate output. The agreement evidence
-  is in the 0.4.0 notes below and is unchanged by this: seventeen recorded
-  parity cases in which `lo_value`, `p` and `FDR` each deviate by zero at the
-  precision the output file carries, plus twelve comparisons on two published
-  screens reproducing their archived MAGeCK output. Rows that tie on
-  `lo_value` may still appear in a different order, because the helper sorts
-  ties with an unstable quicksort and this sorts them stably. No value
-  differs.
+  The two defaults move in the same release deliberately. Phase 2 of the port
+  applies to both helpers, and shipping the flips separately would mean two
+  releases in which a user's numbers could change for reasons that have
+  nothing to do with their data.
+
+  Nothing about the results changes, which is the reason the defaults could
+  move at all rather than users having to re-validate output. The agreement
+  evidence is in the 0.4.0 notes below and is unchanged by this. What
+  "agreement" means differs slightly between the two, and both are worth
+  stating:
+
+  - **RRA.** Seventeen recorded parity cases in which `lo_value`, `p` and
+    `FDR` each deviate by zero at the precision the output file carries, plus
+    twelve comparisons on two published screens reproducing their archived
+    MAGeCK output. Rows that tie on `lo_value` may appear in a different
+    order, because the helper sorts ties with an unstable quicksort and this
+    sorts them stably. No value differs.
+  - **GSEA.** `p`, `FDR` and `p_permutation` are required to agree *exactly* --
+    `p_permutation` is a count of exceedances over a seeded generator whose
+    consumption order is fully determined, so two correct implementations have
+    no reason to differ by even one permutation. `ES` carries a 1e-15 absolute
+    tolerance, which is not an allowance for the port: the helper's
+    accumulator is contracted into a fused multiply-add by clang at `-O3`
+    wherever FMA is in the baseline instruction set, so the C++ does not agree
+    with *itself* to the last bit across architectures. That tolerance sits
+    eight orders of magnitude below the float32 resolution of any non-zero
+    `ES`.
+
+- A run on a compiled helper now says so in the log. Previously only the
+  Python paths announced themselves, so a run on the C++ was silent about
+  which implementation produced its numbers -- which mattered little while the
+  helpers were the default and matters more now that selecting them is the
+  deviation from normal.
 
 ### Added
 
-- CI runs the whole test suite against *both* RRA implementations on every
-  pull request, rather than only against whichever one is currently the
-  default. Without that, flipping the default would silently halve what is
-  tested: the parity suite would still pass, against one implementation, and
-  nothing would report that the other had stopped being exercised.
+- CI runs the whole test suite against *both* implementations of *both*
+  helpers on every pull request, rather than only against whichever pair is
+  currently the default. Without that, flipping a default would silently halve
+  what is tested: the parity suites would still pass, against one
+  implementation, and nothing would report that the other had stopped being
+  exercised.
+
+  The two switches move together in that job rather than as a 2x2 matrix. What
+  they select is the integration path -- which implementation `mageck2 test`
+  and `mageck2 pathway` actually call -- and that path is independent for the
+  two helpers, so the cross combinations would add runner time without adding
+  coverage.
 
 - The `pull_request` trigger no longer restricts itself to pull requests
   targeting `main`. A pull request stacked on another one's branch previously
